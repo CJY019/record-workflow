@@ -1,0 +1,17 @@
+# torch / torchaudio 先单独装 CUDA 版：
+#   uv pip install torch==2.11.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+qwen-asr==0.0.6
+silero-vad
+pyannote.audio
+modelscope
+anthropic
+fastapi
+uvicorn[standard]
+python-multipart
+pyyaml
+python-dotenv
+soundfile
+numpy
+openai
+pymupdf
+httpx

@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>录音笔记</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --side: #f1f1ee; --fg: #1c1c1e; --muted: #77777c; --faint: #a3a3a8;
+  --line: #e6e6e2; --hover: #ebebe7; --accent: #2f5bea; --accent-soft: #e8eefd; --ok: #1f9d55; --err: #d93f3f;
+  --radius: 12px; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161618; --panel: #1e1e21; --side: #1a1a1c; --fg: #ececee; --muted: #9a9aa0; --faint: #6b6b70;
+    --line: #2c2c30; --hover: #26262a; --accent: #7c9cff; --accent-soft: #232a40; --ok: #4ccb7f; --err: #ff6b6b;
+    --shadow: none; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.65 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.app { display: grid; grid-template-columns: 272px 1fr; height: 100vh; }
+
+/* 侧栏 */
+aside { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.brand { padding: 20px 20px 12px; font-weight: 650; font-size: 15px; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+.brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.new { margin: 0 12px 12px; padding: 9px 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px;
+  text-align: left; color: var(--fg); box-shadow: var(--shadow); }
+.new:hover { border-color: var(--accent); }
+.list { overflow-y: auto; overflow-x: hidden; padding: 0 8px 16px; flex: 1; }
+.list h6 { margin: 12px 12px 6px; font-size: 11px; font-weight: 500; color: var(--faint); letter-spacing: .06em; }
+.item { position: relative; padding: 8px 8px 8px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.item .body { flex: 1; min-width: 0; }
+.item.nested { margin-left: 14px; }
+.item .more, .proj .more { visibility: hidden; border: none; background: none; color: var(--muted); padding: 0 4px; border-radius: 4px; font-size: 15px; line-height: 1; flex: none; }
+.item:hover .more, .item.on .more, .proj:hover .more, .menuopen .more { visibility: visible; }
+.item .more:hover, .proj .more:hover { background: var(--line); }
+.item input, .proj input { width: 100%; font-size: 13px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); outline: none; }
+.sechead { display: flex; align-items: center; justify-content: space-between; margin: 14px 8px 4px 12px; font-size: 11px; color: var(--faint); letter-spacing: .06em; }
+.sechead button { border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1; padding: 0 4px; border-radius: 4px; }
+.sechead button:hover { background: var(--hover); color: var(--accent); }
+.proj { display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 550; }
+.proj:hover { background: var(--hover); }
+.proj .caret { width: 12px; color: var(--faint); font-size: 10px; transition: transform .15s; flex: none; }
+.proj.open .caret { transform: rotate(90deg); }
+.proj .pn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj .cnt { color: var(--faint); font-weight: 400; font-size: 12px; }
+.fmenu { position: fixed; z-index: 50; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 4px; min-width: 160px; }
+.fmenu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--fg); }
+.fmenu button:hover { background: var(--hover); }
+.fmenu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+.fmenu .lbl { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; }
+.crumb { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.crumb a { color: inherit; text-decoration: none; } .crumb a:hover { color: var(--accent); }
+.ver { display: flex; align-items: center; gap: 4px; }
+.quick { display: flex; gap: 6px; overflow-x: auto; padding: 0 2px 8px; scrollbar-width: none; }
+.quick::-webkit-scrollbar { display: none; }
+.qbtn { flex: none; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); }
+.qbtn:hover { color: var(--accent); border-color: var(--accent); }
+.qbtn:disabled { opacity: .5; cursor: default; }
+.item:hover { background: var(--hover); }
+.item.on { background: var(--panel); box-shadow: var(--shadow); }
+.item .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .s { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.done { background: var(--ok); } .dot.error { background: var(--err); }
+.dot.running { background: var(--accent); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.mini { height: 2px; background: var(--line); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.mini b { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+
+/* 主区 */
+main { overflow-y: auto; min-height: 0; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 40px 32px 32px; }
+h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -.01em; }
+.sub { color: var(--muted); font-size: 13px; }
+
+/* 上传 */
+.drop { margin-top: 24px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: var(--panel);
+  padding: 40px 20px; text-align: center; cursor: pointer; transition: .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .big { font-size: 15px; font-weight: 550; }
+.files { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.file { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 12px; }
+.file .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .z { color: var(--muted); font-size: 12px; }
+.x { border: none; background: none; color: var(--faint); font-size: 16px; line-height: 1; padding: 2px 4px; }
+.x:hover { color: var(--err); }
+.field { margin-top: 16px; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.in { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); outline: none; }
+.in:focus { border-color: var(--accent); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+details { margin-top: 16px; }
+summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: none; }
+.switch { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; cursor: pointer; }
+.switch input { accent-color: var(--accent); width: 16px; height: 16px; }
+.btn { border: none; background: var(--accent); color: #fff; padding: 10px 20px; border-radius: 10px; font-weight: 550; }
+.btn:disabled { opacity: .5; cursor: default; }
+.ghost { border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 12px; border-radius: 8px; font-size: 13px; }
+.ghost:hover { border-color: var(--accent); color: var(--accent); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* 任务详情 */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.steps { display: flex; gap: 6px; margin-top: 20px; }
+.step { flex: 1; font-size: 12px; color: var(--faint); }
+.step .bar { height: 3px; border-radius: 3px; background: var(--line); margin-bottom: 6px; overflow: hidden; }
+.step .bar b { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+.step.done { color: var(--muted); } .step.done .bar b { width: 100%; }
+.step.cur { color: var(--fg); font-weight: 550; }
+.err { margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, var(--err) 10%, transparent); color: var(--err); font-size: 13px; }
+.tabs { display: flex; gap: 4px; margin: 24px 0 0; border-bottom: 1px solid var(--line); }
+.tab { border: none; background: none; padding: 8px 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab.on { color: var(--fg); border-color: var(--fg); font-weight: 550; }
+.menu { position: relative; }
+.menu .pop { display: none; position: absolute; right: 0; top: 36px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 6px; min-width: 180px; z-index: 5; }
+.menu.open .pop { display: block; }
+.pop a, .pop button { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 6px; color: var(--fg);
+  text-decoration: none; font-size: 13px; border: none; background: none; }
+.pop a:hover, .pop button:hover { background: var(--hover); }
+.pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+
+/* Markdown */
+.md { padding-top: 8px; overflow-wrap: anywhere; }
+.md h1 { font-size: 20px; margin: 24px 0 8px; } .md h2 { font-size: 17px; margin: 28px 0 8px; }
+.md h3 { font-size: 15px; margin: 20px 0 6px; }
+.md table { border-collapse: collapse; width: 100%; font-size: 13px; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.md th { background: var(--side); }
+.md code { font: 12px ui-monospace, Consolas, monospace; background: var(--side); padding: 1px 5px; border-radius: 4px; }
+.md pre { background: var(--side); padding: 12px; border-radius: 8px; overflow-x: auto; }
+.md blockquote { margin: 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md hr { border: none; border-top: 1px solid var(--line); }
+.transcript p { margin: 0 0 14px; }
+.transcript p > code:first-child { color: var(--accent); background: var(--accent-soft); margin-right: 4px; }
+.transcript strong { font-weight: 600; font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--side); margin-right: 2px; }
+
+/* 资料 */
+.mats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; }
+.mat { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.mat .thumb { aspect-ratio: 4 / 3; background: var(--side) center / contain no-repeat; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 12px; cursor: pointer; }
+.mat .info { padding: 8px 10px; font-size: 12px; }
+.mat .nm { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mat .x { position: absolute; top: 6px; right: 6px; background: var(--panel); border-radius: 6px; visibility: hidden; }
+.mat:hover .x { visibility: visible; }
+.banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); font-size: 13px; margin-top: 14px; }
+.banner .spacer { flex: 1; }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--panel); border-radius: 14px; width: min(560px, 100%); max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal h3 { margin: 0; padding: 16px 18px 8px; font-size: 15px; }
+.modal .mbody { overflow-y: auto; padding: 4px 18px; flex: 1; }
+.modal .mfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.pf { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+.pf input { accent-color: var(--accent); }
+.pf .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .badge { font-size: 11px; color: var(--faint); margin-left: 3px; }
+.where { font-size: 12px; color: var(--faint); margin-top: 2px; word-break: break-all; }
+
+/* 问答 */
+.wrap.wide { max-width: 1120px; }
+.chatlayout { display: grid; grid-template-columns: 220px 1fr; gap: 28px; }
+.convs { position: sticky; top: 0; align-self: start; padding-top: 16px; max-height: calc(100vh - 40px); overflow-y: auto; }
+.newchat { width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
+.newchat:hover { border-color: var(--accent); color: var(--accent); }
+.conv { position: relative; display: flex; align-items: center; gap: 4px; padding: 7px 8px 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.conv:hover { background: var(--hover); }
+.conv.on { background: var(--panel); box-shadow: var(--shadow); }
+.conv .ct { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv .more { visibility: hidden; border: none; background: none; color: var(--muted); padding: 0 4px; border-radius: 4px; font-size: 15px; line-height: 1; }
+.conv:hover .more, .conv.on .more, .conv.menuopen .more { visibility: visible; }
+.conv .more:hover { background: var(--line); }
+.conv input { flex: 1; min-width: 0; font-size: 13px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); outline: none; }
+.cpop { position: absolute; right: 4px; top: 32px; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; min-width: 120px; }
+.cpop button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
+.cpop button:hover { background: var(--hover); }
+.convs .group { font-size: 11px; color: var(--faint); margin: 12px 12px 4px; letter-spacing: .04em; }
+.chat { display: flex; flex-direction: column; min-height: calc(100vh - 210px); min-width: 0; }
+.chat-title { font-size: 13px; color: var(--muted); padding-top: 18px; }
+.msgs { flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 20px 0; }
+.msg.user { align-self: flex-end; max-width: 80%; background: var(--accent-soft); padding: 10px 14px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; }
+.msg.ai { max-width: 100%; }
+.msg.ai .md { padding: 0; }
+.msg.ai .md > :first-child { margin-top: 0; }
+.typing::after { content: "▍"; animation: pulse 1s infinite; color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 32px 0; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
+.chip:hover { color: var(--accent); border-color: var(--accent); }
+.composer { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 24%); padding: 20px 0 8px; }
+.box { display: flex; gap: 8px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 14px; box-shadow: var(--shadow); }
+.box:focus-within { border-color: var(--accent); }
+.box textarea { flex: 1; border: none; outline: none; background: none; resize: none; max-height: 200px; padding: 6px 0; }
+.send { border: none; background: var(--accent); color: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 16px; flex: none; }
+.send:disabled { opacity: .4; }
+.msel { border: none; background: var(--side); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--muted); max-width: 150px; outline: none; flex: none; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 0 6px; border-bottom: 1px dashed var(--line); margin-bottom: 8px; }
+.toolbar .spacer { flex: 1; }
+.in.sm { width: auto; padding: 5px 8px; font-size: 13px; border-radius: 8px; }
+.ghost:disabled { opacity: .5; cursor: default; }
+.hint { font-size: 11px; color: var(--faint); text-align: center; margin-top: 6px; }
+.empty { color: var(--faint); text-align: center; padding: 60px 0; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; }
+  aside { border-right: none; border-bottom: 1px solid var(--line); max-height: 40vh; }
+  .wrap { padding: 24px 16px; }
+  .chatlayout { grid-template-columns: 1fr; gap: 0; }
+  .convs { position: static; max-height: 180px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><i></i>录音笔记</div>
+    <button class="new" onclick="go(null)">＋ 新建任务</button>
+    <div class="list" id="list"></div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const STAGES = [["preprocess","转码"],["vad","切段"],["asr","转录"],["diarize","说话人"],["summarize","总结"]];
+const STAGE_NAME = Object.fromEntries(STAGES);
+const fmtDur = s => !s ? "" : s >= 3600 ? `${Math.floor(s/3600)} 小时 ${Math.round(s%3600/60)} 分` : `${Math.max(1, Math.round(s/60))} 分钟`;
+const fmtSize = b => b > 1048576 ? (b/1048576).toFixed(1) + " MB" : Math.round(b/1024) + " KB";
+
+let INFO = {prompts: [], models: []}, JOBS = [], cur = null, conv = null, convs = [], tab = "summary", picked = [], lastSig = "";
+const PROMPT_NAME = {lecture: "课程笔记", brief: "简要总结", meeting: "会议纪要"};
+const pName = p => PROMPT_NAME[p] || p;
+const mLabel = id => (INFO.models.find(m => m.id === id) || {}).label || (id || "").split(":").pop();
+function modelOptions(sel) {
+  const groups = {};
+  INFO.models.forEach(m => (groups[m.provider] ||= []).push(m));
+  return Object.entries(groups).map(([g, ms]) => `<optgroup label="${esc(g)}">${ms.map(m =>
+    `<option value="${m.id}" ${m.id === sel ? "selected" : ""} ${m.available === false ? "disabled" : ""}>${esc(m.label)}${m.available === false ? "（不可用）" : ""}${m.vision ? "" : " · 仅文字"}</option>`).join("")}</optgroup>`).join("");
+}
+const promptOptions = sel => INFO.prompts.map(p => `<option value="${p}" ${p === sel ? "selected" : ""}>${pName(p)}</option>`).join("");
+
+const stem = n => String(n || "").replace(/\.[^.]+$/, "");
+const jName = j => j.title || stem(j.filename);
+let PROJECTS = [], newProject = "", uiBusy = false;
+function openState() { try { return JSON.parse(localStorage.getItem("projOpen") || "{}"); } catch { return {}; } }
+function setOpen(id, v) { const o = openState(); o[id] = v; try { localStorage.setItem("projOpen", JSON.stringify(o)); } catch {} }
+
+/* 浮动菜单：items = [{label, fn, danger} | "-" | {label, sub:true}] */
+function closeMenus() {
+  document.querySelectorAll(".fmenu").forEach(x => x.remove());
+  document.querySelectorAll(".menuopen").forEach(x => x.classList.remove("menuopen"));
+  uiBusy = !!document.querySelector(".item input, .proj input");
+}
+function popMenu(anchor, items) {
+  closeMenus(); uiBusy = true;
+  const row = anchor.closest(".item, .proj, .ver"); row?.classList.add("menuopen");
+  const m = document.createElement("div"); m.className = "fmenu";
+  items.forEach(it => {
+    if (it === "-") { m.appendChild(document.createElement("hr")); return; }
+    if (it.sub) { const d = document.createElement("div"); d.className = "lbl"; d.textContent = it.label; m.appendChild(d); return; }
+    const b = document.createElement("button"); b.textContent = it.label;
+    if (it.danger) b.style.color = "var(--err)";
+    b.onclick = e => { e.stopPropagation(); closeMenus(); it.fn(); };
+    m.appendChild(b);
+  });
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + "px";
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+}
+document.addEventListener("click", e => { if (!e.target.closest(".fmenu")) closeMenus(); });
+/* 行内重命名 */
+function inlineEdit(el, value, onSave) {
+  uiBusy = true;
+  el.innerHTML = `<input value="${esc(value)}" maxlength="80">`;
+  const inp = el.querySelector("input"); inp.focus(); inp.select();
+  inp.onclick = e => e.stopPropagation();
+  let done = false;
+  const fin = async ok => {
+    if (done) return; done = true; uiBusy = false;
+    const v = inp.value.trim();
+    if (ok && v && v !== value) await onSave(v);
+    loadList(); if (cur) renderJob(true);
+  };
+  inp.onkeydown = e => { if (e.key === "Enter" && !e.isComposing) fin(true); if (e.key === "Escape") fin(false); };
+  inp.onblur = () => fin(true);
+}
+function showModal(title, bodyHtml, okLabel, onOk) {
+  closeModal();
+  const bg = document.createElement("div"); bg.className = "modal-bg"; bg.id = "modal";
+  bg.innerHTML = `<div class="modal"><h3>${esc(title)}</h3><div class="mbody">${bodyHtml}</div>
+    <div class="mfoot"><button class="ghost" onclick="closeModal()">取消</button>${okLabel ? `<button class="btn" id="modalOk">${esc(okLabel)}</button>` : ""}</div></div>`;
+  bg.onclick = e => { if (e.target === bg) closeModal(); };
+  document.body.appendChild(bg); uiBusy = true;
+  if (okLabel) $("#modalOk").onclick = async () => { await onOk(bg); closeModal(); };
+}
+function closeModal() { $("#modal")?.remove(); uiBusy = false; }
+/* 从项目文件夹挑选课件：回调拿到相对路径数组 */
+async function pickProjectFiles(pid, onPick) {
+  const files = await J(`/projects/${pid}/files`).then(r => r.json());
+  const body = files.length ? files.map((f, i) => `<label class="pf"><input type="checkbox" value="${esc(f.path)}">
+      <span class="n" title="${esc(f.path)}">${esc(f.path)}</span><span class="sub">${fmtSize(f.size)}</span></label>`).join("")
+    : `<div class="empty" style="padding:30px 0">项目文件夹里没有找到 PPT / Word / PDF / 图片</div>`;
+  showModal("从项目文件夹选择课件", body, files.length ? "添加所选" : null, async bg => {
+    const sel = [...bg.querySelectorAll(".pf input:checked")].map(x => x.value);
+    if (sel.length) await onPick(sel);
+  });
+}
+const J = (path, method = "GET", body) => fetch(path, {method, headers: {"Content-Type": "application/json"}, body: body && JSON.stringify(body)});
+
+function md(el, text) {
+  el.innerHTML = window.marked ? marked.parse(text) : `<pre>${esc(text)}</pre>`;
+  if (window.renderMathInElement) renderMathInElement(el, {delimiters: [
+    {left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false},
+    {left: "\\(", right: "\\)", display: false}, {left: "\\[", right: "\\]", display: true}], throwOnError: false});
+}
+
+/* ---------- 侧栏 ---------- */
+async function loadList() {
+  if (uiBusy) return;
+  [JOBS, PROJECTS] = await Promise.all([
+    fetch("/jobs").then(r => r.json()).catch(() => JOBS),
+    fetch("/projects").then(r => r.json()).catch(() => PROJECTS)]);
+  if (uiBusy) return;
+  const open = openState(), pids = new Set(PROJECTS.map(p => p.id));
+  const row = (j, indent) => {
+    const st = j.status === "running" ? `${STAGE_NAME[j.stage] || "处理"}中 ${Math.round((j.progress || 0) * 100)}%`
+      : j.status === "queued" ? "排队中" : j.status === "error" ? "失败" : fmtDur(j.duration_sec);
+    return `<div class="item ${indent ? "nested" : ""} ${j.id === cur ? "on" : ""}" data-id="${j.id}" onclick="go('${j.id}')">
+      <div class="body"><div class="t">${esc(jName(j))}</div>
+      <div class="s"><span class="dot ${j.status}"></span>${esc(st)}${(j.inputs || []).length > 1 ? ` · ${j.inputs.length} 段` : ""}</div>
+      ${j.status === "running" ? `<div class="mini"><b style="width:${overall(j)}%"></b></div>` : ""}</div>
+      <button class="more" title="更多" onclick="event.stopPropagation();jobMenu(this,'${j.id}')">⋯</button></div>`;
+  };
+  let html = `<div class="sechead"><span>项目</span><button title="新建项目" onclick="newProj()">＋</button></div>`;
+  for (const p of PROJECTS) {
+    const js = JOBS.filter(j => j.project === p.id), isOpen = open[p.id] !== false;
+    html += `<div class="proj ${isOpen ? "open" : ""}" data-pid="${p.id}" title="${esc(p.folder ? "文件夹：" + p.folder : "未关联文件夹")}" onclick="setOpen('${p.id}',${!isOpen});loadList()">
+      <span class="caret">▶</span><span class="pn">${esc(p.name)}</span><span class="cnt">${js.length}</span>
+      <button class="more" title="更多" onclick="event.stopPropagation();projMenu(this,'${p.id}')">⋯</button></div>`;
+    if (isOpen) html += js.map(j => row(j, true)).join("") || `<div class="sub" style="padding:2px 0 6px 38px;font-size:12px">暂无录音</div>`;
+  }
+  if (!PROJECTS.length) html += `<div class="sub" style="padding:2px 12px 4px;font-size:12px">按课程建项目，把每节课的录音放进去</div>`;
+  const loose = JOBS.filter(j => !pids.has(j.project));
+  if (loose.length) html += `<div class="sechead"><span>未归类</span></div>` + loose.map(j => row(j, false)).join("");
+  $("#list").innerHTML = html;
+}
+async function newProj(after) {
+  const name = prompt("项目名称（例如课程名）：", "");
+  if (!name || !name.trim()) return null;
+  const p = await J("/projects", "POST", {name: name.trim()}).then(r => r.json());
+  setOpen(p.id, true); await loadList(); after && after(p); return p;
+}
+function projMenu(btn, pid) {
+  const p = PROJECTS.find(x => x.id === pid);
+  popMenu(btn, [
+    {label: "在此项目中新建任务", fn: () => { newProject = pid; go(null); }},
+    {label: p.folder ? "更换项目文件夹…" : "关联项目文件夹…", fn: () => linkFolder(pid)},
+    ...(p.folder ? [{label: "打开项目文件夹", fn: () => J(`/projects/${pid}/reveal`, "POST")},
+                    {label: "取消关联文件夹", fn: () => unlinkFolder(pid)}] : []),
+    {label: "重命名", fn: () => inlineEdit(document.querySelector(`.proj[data-pid="${pid}"] .pn`), p.name, v => J(`/projects/${pid}`, "PATCH", {name: v}))},
+    "-",
+    {label: "删除项目", danger: true, fn: async () => {
+      if (!confirm(`删除项目「${p.name}」？\n其中的录音不会删除，会移到「未归类」。`)) return;
+      await J(`/projects/${pid}`, "DELETE"); loadList(); if (cur) renderJob(true); }},
+  ]);
+}
+function moveItems(jid) {
+  const j = JOBS.find(x => x.id === jid) || {};
+  return [{label: "移动到", sub: true},
+    ...PROJECTS.filter(p => p.id !== j.project).map(p => ({label: "　" + p.name, fn: () => moveJob(jid, p.id)})),
+    ...(j.project ? [{label: "　移出项目（未归类）", fn: () => moveJob(jid, "")}] : []),
+    {label: "　＋ 新建项目…", fn: () => newProj(p => moveJob(jid, p.id))}];
+}
+async function linkFolder(pid) {
+  const r = await J(`/projects/${pid}/folder`, "POST", {}).then(r => r.json());  // 弹出系统选择文件夹对话框
+  if (r.cancelled) return;
+  if (r.detail) return alert(r.detail);
+  let msg = `已关联：${r.folder}\n\n以后这个项目的录音、课件、转录稿、总结和问答记录都会按类别存放在这个文件夹里。`;
+  if (r.moved) msg += `\n已把 ${r.moved} 条已有录音整理进去。`;
+  if (r.skipped && r.skipped.length) msg += `\n未能移动：\n${r.skipped.join("\n")}`;
+  alert(msg); loadList(); if (cur) renderJob(true);
+}
+async function unlinkFolder(pid) {
+  if (!confirm("取消关联后，已有文件仍留在原文件夹里（程序照样能打开）；之后新建的录音会放回程序的数据目录。继续？")) return;
+  await J(`/projects/${pid}/folder`, "POST", {folder: ""}); loadList();
+}
+async function moveJob(jid, pid) {
+  const r = await J(`/jobs/${jid}`, "PATCH", {project: pid});
+  if (!r.ok) alert((await r.json()).detail || "移动失败");
+  if (pid) setOpen(pid, true); loadList(); if (cur) renderJob(true);
+}
+function renameJob(jid) {
+  const j = JOBS.find(x => x.id === jid);
+  const el = document.querySelector(`.item[data-id="${jid}"] .t`) || document.querySelector("#jobTitle");
+  inlineEdit(el, jName(j), v => J(`/jobs/${jid}`, "PATCH", {title: v}));
+}
+async function deleteJob(jid) {
+  const j = JOBS.find(x => x.id === jid);
+  if (["running", "queued"].includes(j.status)) return alert("任务正在处理，完成后才能删除");
+  if (!confirm(`删除「${jName(j)}」？\n录音原文件、转录稿、总结和问答记录都会被删除，无法撤销。`)) return;
+  await J(`/jobs/${jid}`, "DELETE");
+  if (cur === jid) go(null); else loadList();
+}
+function jobMenu(btn, jid) {
+  popMenu(btn, [
+    {label: "重命名", fn: () => renameJob(jid)},
+    ...moveItems(jid), "-",
+    {label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")},
+    "-",
+    {label: "删除", danger: true, fn: () => deleteJob(jid)},
+  ]);
+}
+const overall = j => { const i = STAGES.findIndex(s => s[0] === j.stage); return Math.round(((i < 0 ? 0 : i) + (j.progress || 0)) / STAGES.length * 100); };
+
+function go(id, t = "summary", c = null) {
+  if (id !== cur) conv = null;
+  cur = id; tab = t; lastSig = ""; if (c !== null) conv = c;
+  setHash(); loadList(); render();
+}
+function setHash() {
+  const h = !cur ? "" : "#" + cur + (tab !== "summary" ? "/" + tab : "") + (tab === "chat" && conv ? "/" + conv : "");
+  history.replaceState(null, "", h || location.pathname);
+}
+function setTab(t) { go(cur, t); }
+
+/* ---------- 新建 ---------- */
+function renderNew() {
+  $("#main").innerHTML = `<div class="wrap">
+    <h1>新建任务</h1><div class="sub">本地 Qwen3-ASR 转录，大模型总结与问答</div>
+    <div class="drop" id="drop"><div class="big">拖入录音，或点击选择</div>
+      <div class="sub">支持 m4a / mp3 / wav / mp4 等，可一次选多段</div></div>
+    <input type="file" id="fileIn" multiple accept="audio/*,video/*" hidden>
+    <div class="files" id="files"></div>
+    <label class="switch" id="mergeRow" style="display:none"><input type="checkbox" id="merge" checked>
+      <span>合并为一节课 <span class="sub">— 按文件名顺序拼接，只出一份总结</span></span></label>
+    <div class="field"><label>所属项目</label><select class="in" id="project">${projOptions(newProject)}</select></div>
+    <div class="field"><label>课件 / 讲义（可选：PPT、Word、PDF、图片，模型会结合课件总结）</label>
+      <div class="actions"><button class="ghost" onclick="$('#docIn').click()">＋ 选择文件</button>
+        <button class="ghost" id="pickProj" style="display:none" onclick="pickForNew()">从项目文件夹选择</button></div>
+      <input type="file" id="docIn" multiple hidden accept=".pdf,.ppt,.pptx,.pps,.ppsx,.doc,.docx,.odp,.odt,.rtf,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg,.webp">
+      <div class="files" id="docs"></div></div>
+    <div class="field"><label>课程名 / 关键术语（可选，能提高识别准确率）</label>
+      <input class="in" id="context" placeholder="例如：示例课程，梯度下降，交叉熵"></div>
+    <div class="grid">
+      <div class="field"><label>总结模型</label><select class="in" id="model">${modelOptions(INFO.summary_model)}</select></div>
+      <div class="field"><label>总结模板</label><select class="in" id="prompt">${promptOptions("lecture")}</select></div>
+    </div>
+    <details><summary>高级选项</summary>
+      <div class="grid" style="margin-top:12px">
+        <div class="field"><label>语言</label><select class="in" id="language">
+          <option value="">中文（默认）</option><option value="auto">自动 / 中英混合</option><option value="English">英文</option></select></div>
+        <div class="field"><label>说话人区分</label><select class="in" id="diarize">
+          <option value="">关闭</option><option value="true">开启</option></select></div>
+        <div class="field"><label>说话人数（可选）</label><input class="in" id="spk" type="number" min="1" placeholder="自动"></div>
+      </div>
+      <div class="field"><label>总结的补充要求</label><textarea class="in" id="extra" rows="2" placeholder="例如：多列出例题和公式推导"></textarea></div>
+    </details>
+    <div class="actions" style="margin-top:24px"><button class="btn" id="go" disabled onclick="submit()">开始处理</button>
+      <span class="sub" id="upmsg"></span></div>
+  </div>`;
+  const drop = $("#drop"), fi = $("#fileIn");
+  $("#project").onchange = async e => {
+    if (e.target.value === "__new") {
+      const p = await newProj();
+      newProject = p ? p.id : "";
+      e.target.innerHTML = projOptions(newProject);
+    } else newProject = e.target.value;
+    projDocs = []; drawDocs();
+  };
+  $("#docIn").onchange = e => { for (const f of e.target.files) if (!pickedDocs.some(x => x.name === f.name && x.size === f.size)) pickedDocs.push(f); e.target.value = ""; drawDocs(); };
+  drawDocs();
+  if (newProject && !$("#context").value) $("#context").value = (PROJECTS.find(p => p.id === newProject) || {}).name || "";
+  drop.onclick = () => fi.click();
+  fi.onchange = () => { addFiles(fi.files); fi.value = ""; };
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
+  drawFiles();
+}
+let pickedDocs = [], projDocs = [];
+function drawDocs() {
+  const pr = PROJECTS.find(p => p.id === newProject);
+  if ($("#pickProj")) $("#pickProj").style.display = pr && pr.folder ? "" : "none";
+  $("#docs").innerHTML = pickedDocs.map((f, i) => `<div class="file"><span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
+      <button class="x" onclick="pickedDocs.splice(${i},1);drawDocs()">×</button></div>`).join("")
+    + projDocs.map((f, i) => `<div class="file"><span class="n">${esc(f)}</span><span class="z">项目文件夹</span>
+      <button class="x" onclick="projDocs.splice(${i},1);drawDocs()">×</button></div>`).join("");
+}
+function pickForNew() { pickProjectFiles(newProject, sel => { projDocs = [...new Set([...projDocs, ...sel])]; drawDocs(); }); }
+function projOptions(sel) {
+  return `<option value="">未归类</option>` + PROJECTS.map(p => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("")
+    + `<option value="__new">＋ 新建项目…</option>`;
+}
+function addFiles(fl) {
+  for (const f of fl) if (!picked.some(p => p.name === f.name && p.size === f.size)) picked.push(f);
+  picked.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", {numeric: true}));
+  drawFiles();
+}
+function drawFiles() {
+  $("#files").innerHTML = picked.map((f, i) => `<div class="file"><span class="sub">${i + 1}</span>
+    <span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
+    <button class="x" onclick="picked.splice(${i},1);drawFiles()" title="移除">×</button></div>`).join("");
+  $("#mergeRow").style.display = picked.length > 1 ? "flex" : "none";
+  $("#go").disabled = !picked.length;
+}
+async function submit() {
+  const fd = new FormData();
+  picked.forEach(f => fd.append("file", f));
+  pickedDocs.forEach(f => fd.append("attachments", f));
+  if (projDocs.length) fd.append("project_files", JSON.stringify(projDocs));
+  fd.append("merge", picked.length > 1 && $("#merge").checked ? "true" : "false");
+  for (const [k, id] of [["context","context"],["language","language"],["prompt","prompt"],["model","model"],["diarize","diarize"],["num_speakers","spk"],["extra","extra"],["project","project"]]) {
+    const v = $("#" + id).value.trim(); if (v) fd.append(k, v);
+  }
+  const btn = $("#go"); btn.disabled = true;
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/jobs");
+  xhr.upload.onprogress = e => { $("#upmsg").textContent = `上传中 ${Math.round(e.loaded / e.total * 100)}%`; };
+  xhr.onload = () => {
+    if (xhr.status !== 200) { $("#upmsg").textContent = "上传失败：" + xhr.responseText; btn.disabled = false; return; }
+    picked = []; pickedDocs = []; projDocs = []; if (newProject) setOpen(newProject, true); go(JSON.parse(xhr.responseText).id);
+  };
+  xhr.onerror = () => { $("#upmsg").textContent = "上传失败"; btn.disabled = false; };
+  xhr.send(fd);
+}
+
+/* ---------- 任务详情 ---------- */
+async function renderJob(force) {
+  const j = await fetch(`/jobs/${cur}`).then(r => r.ok ? r.json() : null);
+  if (!j) { cur = null; return render(); }
+  const sig = [j.status, j.stage, j.files.join(), tab].join("|");
+  const running = j.status === "running" || j.status === "queued";
+  if (!force && sig === lastSig) { if (running) updateSteps(j); return; }
+  lastSig = sig;
+
+  const meta = [fmtDur(j.duration_sec), (j.inputs || []).length > 1 ? `${j.inputs.length} 段合并` : "",
+    j.status === "done" && j.elapsed_sec ? `处理用时 ${Math.round(j.elapsed_sec)} 秒` : "",
+    new Date(j.created_at * 1000).toLocaleString("zh-CN", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})].filter(Boolean).join(" · ");
+  const dl = j.files.filter(f => /\.(md|srt|txt|json)$/.test(f) && !/^(asr|segments|diar)/.test(f))
+    .map(f => `<a href="/jobs/${j.id}/files/${f}">${({"summary.md":"总结 (Markdown)","transcript.md":"转录稿 (Markdown)","transcript.srt":"字幕 (SRT)","transcript.txt":"转录稿 (纯文本)","transcript.json":"转录数据 (JSON)"})[f] || f}</a>`).join("");
+  const hasT = j.files.includes("transcript.md");
+  const proj = PROJECTS.find(p => p.id === j.project);
+  if (!JOBS.some(x => x.id === j.id)) JOBS.push(j);
+
+  $("#main").innerHTML = `<div class="wrap ${tab === "chat" ? "wide" : ""}" id="jobwrap">
+    <div class="head"><div style="min-width:0">
+      <div class="crumb">${proj ? `<a href="#" onclick="setOpen('${proj.id}',true);loadList();return false">${esc(proj.name)}</a>` : "未归类"}</div>
+      <h1 id="jobTitle" title="双击重命名" ondblclick="renameJob('${j.id}')">${esc(jName(j))}</h1><div class="sub">${esc(meta)}</div>
+      ${j.dir ? `<div class="where" title="点击打开文件夹"><a href="#" style="color:inherit" onclick="J('/jobs/${j.id}/reveal','POST');return false">${esc(j.dir)}</a></div>` : ""}</div>
+      ${!running ? `<div class="actions">
+        <div class="menu" id="m1"><button class="ghost" onclick="toggleMenu('m1')">下载 ▾</button><div class="pop">${dl || '<span class="sub" style="padding:6px 10px;display:block">暂无文件</span>'}</div></div>
+        <button class="ghost" onclick="event.stopPropagation();detailMenu(this,'${j.id}')">更多 ▾</button></div>` : ""}
+    </div>
+    ${running ? `<div class="steps" id="steps">${STAGES.map(s => `<div class="step" data-s="${s[0]}"><div class="bar"><b></b></div>${s[1]}</div>`).join("")}</div>` : ""}
+    ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
+    ${hasT ? `<div class="tabs">
+      <button class="tab ${tab === "summary" ? "on" : ""}" onclick="setTab('summary')">总结</button>
+      <button class="tab ${tab === "transcript" ? "on" : ""}" onclick="setTab('transcript')">转录稿</button>
+      <button class="tab ${tab === "materials" ? "on" : ""}" onclick="setTab('materials')">课件资料<span class="badge" id="matCount"></span></button>
+      <button class="tab ${tab === "chat" ? "on" : ""}" onclick="setTab('chat')">问答</button></div>
+      <div id="pane"></div>` : running ? `<div class="empty">处理中，完成后会自动显示结果</div>` : ""}
+  </div>`;
+  if (running) updateSteps(j);
+  if (hasT) loadPane(j);
+  J(`/jobs/${j.id}/materials`).then(r => r.json()).then(m => { if ($("#matCount")) $("#matCount").textContent = m.length ? m.length : ""; });
+}
+
+/* ---------- 课件资料 ---------- */
+let matTimer = null;
+async function renderMaterials(j) {
+  clearTimeout(matTimer);
+  const pane = $("#pane"); pane.className = "";
+  const [mats, sv] = await Promise.all([J(`/jobs/${j.id}/materials`).then(r => r.json()),
+                                        J(`/jobs/${j.id}/summaries`).then(r => r.json()).catch(() => ({items: []}))]);
+  const pr = PROJECTS.find(p => p.id === j.project);
+  const active = (sv.items || []).find(x => x.id === sv.active);
+  const newest = Math.max(0, ...mats.filter(m => m.status === "ready").map(m => m.added_at));
+  const stale = mats.length && (!active || newest > active.created_at);
+  pane.innerHTML = `<div class="toolbar"><span class="sub">课件会和录音一起交给模型：Claude / GPT 能同时“看”页面图片，标注“仅文字”的模型只读取文字</span>
+      <span class="spacer"></span>
+      ${pr && pr.folder ? `<button class="ghost" onclick="addFromProject()">从项目文件夹添加</button>` : ""}
+      <button class="ghost" onclick="$('#matIn').click()">＋ 上传课件</button>
+      <input type="file" id="matIn" multiple hidden accept=".pdf,.ppt,.pptx,.pps,.ppsx,.doc,.docx,.odp,.odt,.rtf,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg,.webp"></div>
+    ${stale && j.status === "done" ? `<div class="banner">课件有更新，当前总结还没用上这些课件<span class="spacer"></span>
+      <button class="btn" style="padding:6px 14px" onclick="rerun('summarize',{model:(j_model())})">结合课件生成新版本总结</button></div>` : ""}
+    <div class="mats">${mats.map(m => `<div class="mat">
+      <div class="thumb" ${m.status === "ready" && m.page_count ? `style="background-image:url('/jobs/${j.id}/materials/${m.id}/pages/1')" onclick="window.open('/jobs/${j.id}/materials/${m.id}/pages/1')"` : ""}>
+        ${m.status === "processing" ? "转换中…" : m.status === "error" ? "处理失败" : m.page_count ? "" : "无预览"}</div>
+      <div class="info"><div class="nm" title="${esc(m.name)}">${esc(m.name)}</div>
+        <div class="sub">${m.status === "ready" ? `${m.page_count} 页 · ${fmtSize(m.size)}` : m.status === "error" ? esc(m.error || "") : "正在提取文字和页面…"}</div></div>
+      <button class="x" title="删除" onclick="delMat('${m.id}','${esc(m.name)}')">×</button></div>`).join("")}</div>
+    ${mats.length ? "" : `<div class="empty">还没有课件。上传本节课的 PPT / 讲义，模型就能结合课件整理笔记、回答问题</div>`}`;
+  $("#matIn").onchange = async e => {
+    const fd = new FormData(); for (const f of e.target.files) fd.append("file", f);
+    const r = await fetch(`/jobs/${j.id}/materials`, {method: "POST", body: fd});
+    if (!r.ok) alert((await r.json()).detail || "上传失败");
+    renderMaterials(j);
+  };
+  if (mats.some(m => m.status === "processing")) matTimer = setTimeout(() => { if (tab === "materials" && cur === j.id) renderMaterials(j); }, 2000);
+  if ($("#matCount")) $("#matCount").textContent = mats.length || "";
+}
+const j_model = () => (JOBS.find(x => x.id === cur) || {}).summary_model || INFO.summary_model;
+function addFromProject() {
+  const j = JOBS.find(x => x.id === cur);
+  pickProjectFiles(j.project, async sel => {
+    const r = await J(`/jobs/${cur}/materials/from-project`, "POST", {paths: sel});
+    if (!r.ok) alert((await r.json()).detail || "添加失败");
+    renderJob(true);
+  });
+}
+async function delMat(aid, name) {
+  if (!confirm(`删除课件「${name}」？`)) return;
+  await J(`/jobs/${cur}/materials/${aid}`, "DELETE"); renderJob(true);
+}
+function updateSteps(j) {
+  const idx = STAGES.findIndex(s => s[0] === j.stage);
+  document.querySelectorAll(".step").forEach((el, i) => {
+    el.className = "step" + (i < idx ? " done" : i === idx ? " cur" : "");
+    if (i === idx) el.querySelector("b").style.width = Math.max(4, Math.round((j.progress || 0) * 100)) + "%";
+  });
+}
+async function loadPane(j) {
+  const pane = $("#pane");
+  if (tab === "chat") return renderChat(j);
+  if (tab === "materials") return renderMaterials(j);
+  const f = tab === "summary" ? "summary.md" : "transcript.md";
+  pane.className = "";
+  let bar = "";
+  if (tab === "summary") {
+    const busy = j.status === "running" || j.status === "queued";
+    const sv = await fetch(`/jobs/${j.id}/summaries`).then(r => r.json()).catch(() => ({items: []}));
+    SV = sv;
+    const vlabel = it => `${it.title} · ${mLabel(it.model)} · ${pName(it.prompt)}`;
+    const vsel = sv.items.length ? `<div class="ver"><select class="in sm" id="verSel" title="切换总结版本" onchange="activateVer(this.value)">
+        ${[...sv.items].reverse().map(it => `<option value="${it.id}" ${it.id === sv.active ? "selected" : ""}>${esc(vlabel(it))}</option>`).join("")}</select>
+        <button class="ghost" style="padding:4px 8px" title="重命名 / 删除此版本" onclick="event.stopPropagation();verMenu(this)">⋯</button></div>` : "";
+    bar = `<div class="toolbar">${vsel}<span class="spacer"></span>
+      <select class="in sm" id="rsPrompt">${promptOptions(j.summary_prompt || "lecture")}</select>
+      <select class="in sm" id="rsModel">${modelOptions(j.summary_model || INFO.summary_model)}</select>
+      <button class="ghost" ${busy ? "disabled" : ""} title="生成一个新版本（不会覆盖旧版本）" onclick="rerun('summarize',{prompt:$('#rsPrompt').value,model:$('#rsModel').value})">生成新版本</button></div>`;
+  }
+  if (!j.files.includes(f)) {
+    pane.innerHTML = bar + `<div class="empty">${j.status === "running" ? "总结生成中…" : "还没有总结"}</div>`; return;
+  }
+  let text = await fetch(`/jobs/${j.id}/files/${f}`).then(r => r.text());
+  text = text.replace(/^# [^\n]*\n[\r\n]*/, "");  // 标题已在页头显示（兼容 \r\n）
+  pane.innerHTML = bar + `<div class="md ${tab === "transcript" ? "transcript" : ""}" id="mdbody"></div>`;
+  md($("#mdbody"), text);
+}
+function toggleMenu(id) {
+  const m = document.getElementById(id), open = m.classList.contains("open");
+  document.querySelectorAll(".menu").forEach(x => x.classList.remove("open"));
+  if (!open) m.classList.add("open");
+}
+document.addEventListener("click", e => { if (!e.target.closest(".menu")) document.querySelectorAll(".menu").forEach(x => x.classList.remove("open")); });
+let SV = {items: []};
+async function activateVer(sid) { await J(`/jobs/${cur}/summaries/${sid}/activate`, "POST"); lastSig = ""; renderJob(true); }
+function verMenu(btn) {
+  const it = SV.items.find(x => x.id === SV.active); if (!it) return;
+  popMenu(btn, [
+    {label: "重命名此版本", fn: async () => {
+      const t = prompt("版本名称：", it.title);
+      if (t && t.trim()) { await J(`/jobs/${cur}/summaries/${it.id}`, "PATCH", {title: t.trim()}); renderJob(true); } }},
+    {label: "删除此版本", danger: true, fn: async () => {
+      if (!confirm(`删除「${it.title}」？`)) return;
+      await J(`/jobs/${cur}/summaries/${it.id}`, "DELETE"); lastSig = ""; renderJob(true); }},
+  ]);
+}
+async function rerun(stage, opts = {}) {
+  await fetch(`/jobs/${cur}/rerun`, {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({from_stage: stage, ...opts})});
+  tab = "summary"; lastSig = ""; loadList(); renderJob(true);
+}
+function detailMenu(btn, jid) {
+  popMenu(btn, [
+    {label: "重命名", fn: () => renameJob(jid)},
+    ...moveItems(jid), "-",
+    {label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")},
+    {label: "重新转录", fn: () => rerun("asr")},
+    {label: "开启说话人区分并重跑", fn: () => rerun("diarize", {diarize: true})},
+    "-",
+    {label: "删除任务", danger: true, fn: () => deleteJob(jid)},
+  ]);
+}
+
+/* ---------- 问答（多对话） ---------- */
+const SUGGEST = ["这节课的重点是什么？", "老师强调了哪些考点？", "帮我出 5 道复习题", "把核心公式整理一下"];
+const api = (path, opt = {}) => fetch(`/jobs/${cur}/chats${path}`, {headers: {"Content-Type": "application/json"}, ...opt});
+
+async function renderChat(j) {
+  const pane = $("#pane"); pane.className = "chatlayout";
+  pane.innerHTML = `<div class="convs"><button class="newchat" onclick="newChat()">＋ 新对话</button><div id="convlist"></div></div>
+    <div class="chat"><div class="chat-title" id="chatTitle"></div><div class="msgs" id="msgs"></div>
+      <div class="composer"><div class="quick" id="quick">${(INFO.quick_prompts || []).map((q, i) =>
+          `<button class="qbtn" title="${esc(q.text)}" onclick="ask(INFO.quick_prompts[${i}].text)">${esc(q.label)}</button>`).join("")}</div>
+        <div class="box"><textarea id="q" rows="1" placeholder="就这段录音提问…"></textarea>
+        <select class="msel" id="chatModel" title="问答模型">${modelOptions(chatModel())}</select>
+        <button class="send" id="send" onclick="ask()">↑</button></div>
+        <div class="hint">Enter 发送 · Shift+Enter 换行</div></div></div>`;
+  $("#chatModel").onchange = e => { try { localStorage.setItem("chatModel", e.target.value); } catch {} };
+  const q = $("#q");
+  q.oninput = () => { q.style.height = "auto"; q.style.height = q.scrollHeight + "px"; };
+  q.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(); } };
+  await refreshConvs();
+  if (conv && !convs.some(c => c.id === conv)) conv = null;
+  await loadConv();
+}
+
+async function refreshConvs() {
+  convs = await api("").then(r => r.json()).catch(() => convs);
+  drawConvs();
+}
+
+function drawConvs() {
+  const el = $("#convlist"); if (!el) return;
+  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()) / 1000;
+  const grp = t => t >= today ? "今天" : t >= today - 86400 ? "昨天" : t >= today - 7 * 86400 ? "过去 7 天" : "更早";
+  let html = "", last = "";
+  for (const c of convs) {
+    const g = grp(c.updated_at);
+    if (g !== last) { html += `<div class="group">${g}</div>`; last = g; }
+    html += `<div class="conv ${c.id === conv ? "on" : ""}" data-id="${c.id}" onclick="openConv('${c.id}')">
+      ${STREAMS[skey(c.id)] ? `<span class="dot running" title="正在生成"></span>` : ""}
+      <span class="ct" title="${esc(c.title)}">${esc(c.title)}</span>
+      <button class="more" title="更多" onclick="event.stopPropagation();convMenu('${c.id}')">⋯</button></div>`;
+  }
+  el.innerHTML = html || `<div class="sub" style="padding:8px 12px">还没有对话</div>`;
+  const cur_ = convs.find(c => c.id === conv);
+  if ($("#chatTitle")) $("#chatTitle").textContent = cur_ ? cur_.title : "";
+}
+
+async function loadConv() {
+  const msgs = $("#msgs"); msgs.innerHTML = "";
+  drawConvs();
+  if (!conv) {
+    msgs.innerHTML = `<div class="empty" style="padding:48px 0 0">针对这段录音提问，回答会引用转录稿的时间戳</div>
+      `;
+  } else {
+    const c = await api(`/${conv}`).then(r => r.ok ? r.json() : null);
+    if (!c) { conv = null; setHash(); return loadConv(); }
+    if (c.id !== conv) return;  // 加载期间已切到别的对话
+    c.messages.forEach(m => addMsg(m.role, m.content));
+    const st = STREAMS[skey(conv)];
+    if (st) {  // 这个对话还在生成：接上直播
+      addMsg("user", st.q);
+      const el = addMsg("assistant", ""); st.box = el.firstChild; st.box.classList.add("typing");
+      st.box.innerHTML = window.marked ? marked.parse(st.acc) : esc(st.acc);
+    }
+    document.querySelector("main").scrollTop = 1e9;
+  }
+  updateComposer();
+  $("#q")?.focus();
+}
+
+const STREAMS = {};                       // 正在生成的回答：key = 任务/对话
+const skey = c => `${cur}/${c}`;
+function updateComposer() {
+  const busy = !!(conv && STREAMS[skey(conv)]);
+  if ($("#send")) $("#send").disabled = busy;
+  document.querySelectorAll(".qbtn").forEach(b => b.disabled = busy);
+}
+function openConv(id) {
+  if (id === conv) return;
+  closeConvMenu(); conv = id; setHash(); loadConv();
+}
+function newChat() { conv = null; setHash(); loadConv(); }
+
+function closeConvMenu() {
+  document.querySelectorAll(".cpop").forEach(x => x.remove());
+  document.querySelectorAll(".conv.menuopen").forEach(x => x.classList.remove("menuopen"));
+}
+function convMenu(id) {
+  const row = document.querySelector(`.conv[data-id="${id}"]`), open = row.classList.contains("menuopen");
+  closeConvMenu(); if (open) return;
+  row.classList.add("menuopen");
+  const pop = document.createElement("div"); pop.className = "cpop";
+  pop.innerHTML = `<button onclick="event.stopPropagation();renameConv('${id}')">重命名</button>
+    <button onclick="event.stopPropagation();deleteConv('${id}')" style="color:var(--err)">删除</button>`;
+  row.appendChild(pop);
+}
+function renameConv(id) {
+  closeConvMenu();
+  const row = document.querySelector(`.conv[data-id="${id}"]`), c = convs.find(x => x.id === id);
+  row.innerHTML = `<input value="${esc(c.title)}" maxlength="60">`;
+  const inp = row.querySelector("input"); inp.focus(); inp.select();
+  inp.onclick = e => e.stopPropagation();
+  let done = false;
+  const save = async ok => {
+    if (done) return; done = true;
+    const t = inp.value.trim();
+    if (ok && t && t !== c.title) await api(`/${id}`, {method: "PATCH", body: JSON.stringify({title: t})});
+    refreshConvs();
+  };
+  inp.onkeydown = e => { if (e.key === "Enter" && !e.isComposing) save(true); if (e.key === "Escape") save(false); };
+  inp.onblur = () => save(true);
+}
+async function deleteConv(id) {
+  closeConvMenu();
+  const c = convs.find(x => x.id === id);
+  if (!confirm(`删除对话「${c ? c.title : ""}」？此操作无法撤销。`)) return;
+  await api(`/${id}`, {method: "DELETE"});
+  if (id === conv) { conv = null; setHash(); await loadConv(); }
+  refreshConvs();
+}
+
+function chatModel() {
+  let m = null; try { m = localStorage.getItem("chatModel"); } catch {}
+  return INFO.models.some(x => x.id === m) ? m : INFO.chat_model;
+}
+function addMsg(role, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + (role === "user" ? "user" : "ai");
+  if (role === "user") el.textContent = text; else { const d = document.createElement("div"); d.className = "md"; md(d, text); el.appendChild(d); }
+  $("#msgs").appendChild(el); return el;
+}
+async function ask(text) {
+  const q = $("#q"); text = (text || q.value).trim();
+  if (!text || (conv && STREAMS[skey(conv)])) return;
+  q.value = ""; q.style.height = "auto";
+  const jobAtStart = cur, firstTurn = !conv;
+  if (firstTurn) {
+    $("#msgs").innerHTML = "";
+    const c = await api("", {method: "POST", body: JSON.stringify({})}).then(r => r.json());
+    conv = c.id; setHash(); convs.unshift({...c, count: 0});
+  }
+  const k = skey(conv), cid = conv;
+  addMsg("user", text);
+  const el = addMsg("assistant", ""), st = STREAMS[k] = {q: text, acc: "", box: el.firstChild};
+  st.box.classList.add("typing"); drawConvs(); updateComposer();
+  const main = document.querySelector("main"); main.scrollTop = 1e9;
+  let t = 0;
+  try {
+    const r = await fetch(`/jobs/${jobAtStart}/chats/${cid}/messages`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({message: text, model: $("#chatModel").value})});
+    if (!r.ok) throw new Error(await r.text());
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    while (true) {
+      const {value, done} = await reader.read(); if (done) break;
+      st.acc += dec.decode(value, {stream: true});
+      if (st.box.isConnected && Date.now() - t > 80) {
+        st.box.innerHTML = window.marked ? marked.parse(st.acc) : esc(st.acc); t = Date.now();
+        if (main.scrollHeight - main.scrollTop - main.clientHeight < 200) main.scrollTop = 1e9;
+      }
+    }
+  } catch (e) { st.acc += `\n\n[出错：${e.message}]`; }
+  delete STREAMS[k];
+  if (st.box.isConnected) { st.box.classList.remove("typing"); md(st.box, st.acc); }
+  if (cur === jobAtStart && tab === "chat") {
+    updateComposer(); refreshConvs();
+    if (firstTurn) setTimeout(() => { if (cur === jobAtStart && tab === "chat") refreshConvs(); }, 4000);  // 等自动标题
+  }
+}
+
+/* ---------- 启动 ---------- */
+function render() { if (cur) renderJob(true); else renderNew(); }
+fetch("/info").then(r => r.json()).then(i => {
+  INFO = i;
+  const [id, t, c] = location.hash.slice(1).split("/");
+  if (id) { cur = id; tab = t || "summary"; conv = c || null; }
+  render();
+});
+loadList();
+setInterval(() => { if (uiBusy) return; loadList(); if (cur && tab !== "chat" && tab !== "materials") renderJob(false); }, 2500);
+document.addEventListener("click", e => { if (!e.target.closest(".conv")) closeConvMenu(); });
+</script>
+</body>
+</html>

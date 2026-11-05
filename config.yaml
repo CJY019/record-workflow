@@ -1,0 +1,88 @@
+# ===== 录音转录总结工作流配置 =====
+
+server:
+  host: 127.0.0.1
+  port: 8000
+
+paths:
+  jobs_dir: data/jobs
+  models_dir: models
+
+device: cuda          # cuda / cpu
+unload_after_use: true # 每个阶段结束后释放显存（8GB 显卡建议 true）
+
+vad:
+  max_segment_sec: 30     # 合并后每段最长秒数
+  min_silence_ms: 500     # 静音超过多久算断句
+  threshold: 0.5
+
+asr:
+  model: Qwen/Qwen3-ASR-1.7B           # ModelScope / HF 仓库名；会下载到 models_dir。可改 Qwen/Qwen3-ASR-0.6B 省显存
+  aligner: Qwen/Qwen3-ForcedAligner-0.6B  # 设为 null 关闭（只有段级时间戳）
+  dtype: bfloat16
+  language: Chinese       # null = 自动检测；中英混合建议 null
+  batch_size: 4
+  max_new_tokens: 1024
+  default_context: ""     # 默认提示词，可写课程名/专业术语
+
+diarization:
+  default: false          # 讲座默认关闭；请求里 diarize=true 打开
+  model: pyannote/speaker-diarization-community-1
+  # 需要 HF token（.env 里 HF_TOKEN），并在 HuggingFace 上同意模型协议
+  num_speakers: null
+  min_speakers: null
+  max_speakers: null
+
+# ===== 大模型服务商 =====
+# 模型 id 写成 "服务商:模型"，例如 openai:your-model-id
+# 将 your-model-id 替换为自己的服务商实际支持的模型 ID
+# format: anthropic（Messages API）或 openai；openai 下 wire_api: responses 走 Responses API
+# key_env: 从哪个环境变量读 key（.env 或系统环境变量）
+# vision: 该服务商的模型能否看图（课件页面图片）；不能看图时只发送课件文字
+llm:
+  providers:
+    openai:
+      label: OpenAI / Compatible
+      format: openai
+      wire_api: responses       # 兼容服务仅支持 Chat Completions 时改为 chat
+      base_url_env: OPENAI_BASE_URL
+      key_env: OPENAI_API_KEY
+      max_tokens: 16000
+      vision: true             # 仅支持文字的模型请改为 false
+      models:
+        your-model-id: My Model
+    anthropic:
+      label: Anthropic
+      format: anthropic
+      base_url_env: ANTHROPIC_BASE_URL
+      key_env: ANTHROPIC_API_KEY
+      max_tokens: 16000
+      vision: true
+      models:
+        your-anthropic-model-id: My Anthropic Model
+
+summary:
+  model: openai:your-model-id       # 默认总结模型
+  chat_model: openai:your-model-id  # 默认问答模型
+  title_model: openai:your-model-id # 给对话自动起标题
+  default_prompt: lecture    # app/prompts/ 下的文件名
+  single_pass_chars: 60000   # 转录超过这个字数走分段 map-reduce
+  chunk_chars: 20000
+  timeout_sec: 600
+
+# 问答输入框上方的快捷提问按钮（label 显示在按钮上，text 是实际发送的内容）
+quick_prompts:
+  - {label: 总结, text: 用 5 条要点总结这节课的主要内容}
+  - {label: 重点, text: 这节课的重点和难点是什么？老师特别强调了哪些内容？}
+  - {label: 考点, text: 老师提到哪些可能考试的内容？请标出时间戳}
+  - {label: 公式, text: 把课上出现的核心公式和定义整理出来，说明每个符号的含义}
+  - {label: 复习题, text: 根据这节课出 5 道复习题（含答案），覆盖主要知识点}
+  - {label: 没听懂的地方, text: 找出这节课里最难理解的 3 个概念，用通俗的语言重新讲一遍}
+  - {label: 课后作业, text: 老师布置了哪些作业、阅读材料或下次课安排？}
+
+# 课件/资料（PPT、Word、PDF、图片）
+materials:
+  soffice: null            # 自动从 PATH / 标准安装目录查找 LibreOffice
+  image_long_side: 1280     # 页面图片长边像素
+  max_images: 60            # 每次最多发给模型的页面图片数（超出则均匀抽样）
+  max_text_chars: 80000     # 课件文字上限
