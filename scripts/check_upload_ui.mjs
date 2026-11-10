@@ -79,15 +79,23 @@ const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Applica
 if (!chrome) { server.close(); throw new Error('Set CHROME_PATH to a Chrome or Chromium executable.'); }
 const profile = await mkdtemp(path.join(tmpdir(), 'record-upload-check-'));
 const browser = spawn(chrome, ['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',
-  '--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], {windowsHide:true,stdio:'ignore'});
+  '--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], {windowsHide:true,stdio:['ignore','ignore','pipe']});
+let launchError = '';
+browser.stderr.on('data', data => { launchError = (launchError + data.toString()).slice(-4000); });
+browser.on('error', error => { launchError = error.message; });
 let ws;
 try {
   let port;
-  for (let i=0;i<100;i++) {
-    try { port = Number((await readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]); break; }
-    catch { await delay(50); }
+  const launchDeadline = Date.now() + 30000;
+  while (Date.now() < launchDeadline) {
+    try {
+      port = Number((await readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);
+      if (Number.isInteger(port) && port > 0 && port < 65536) break;
+    } catch {}
+    if (browser.exitCode !== null || browser.signalCode !== null) break;
+    await delay(100);
   }
-  assert.ok(port, 'Browser did not start');
+  assert.ok(port, 'Browser did not start: ' + (launchError || 'startup exceeded 30 seconds'));
   const pages = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   ws = new WebSocket(pages.find(p => p.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve,reject) => { ws.onopen=resolve; ws.onerror=reject; });
@@ -236,6 +244,7 @@ try {
 } finally {
   ws?.close();
   if (browser.exitCode === null) browser.kill();
+  browser.stderr.destroy();
   for (const item of held) { try { item.finish(); } catch {} }
   server.closeAllConnections(); server.close();
 }
