@@ -40,10 +40,33 @@ MATERIALS_HINT = """
 - 老师讲了但课件上没有的内容（例子、口头强调、考试提示）要特别保留。"""
 
 
+LIBRARY_HINT = """
+# 项目资料库
+用户还提供了从本课程既往资料、其他几讲录音中检索到的相关片段（<project_library>）。请：
+- 以本节课录音为主，资料库只作背景：用来补充前后课的联系（如「第1讲讲过的××」）、纠正术语、对应教材章节；
+- 引用时注明来源，如 [文件名 P页码]；不相关的片段直接忽略，不要为了引用而引用。"""
+
+
 def summarize(transcript: str, prompt: str | None = None, model: str | None = None,
-              extra: str = "", progress=None, materials: list | None = None) -> str:
+              extra: str = "", progress=None, materials: list | None = None, library: str = "",
+              on_attempt=None, on_model=None) -> str:
+    from .. import llm
+
     c = CFG["summary"]
+    chain = llm.summary_models(model)
+    current_model = 0
+
+    def generate(system, user):
+        nonlocal current_model
+        text, actual = llm.complete_summary(system, user, chain[current_model:], on_attempt)
+        current_model = chain.index(actual)
+        if on_model:
+            on_model(actual)
+        return text
     system = load_prompt(prompt or c["default_prompt"])
+    if library:
+        system += LIBRARY_HINT
+        materials = [*(materials or []), {"type": "text", "text": library}]
     if materials:
         system += MATERIALS_HINT
     if extra:
@@ -53,7 +76,7 @@ def summarize(transcript: str, prompt: str | None = None, model: str | None = No
         return [*materials, {"type": "text", "text": text}] if materials else text
 
     if len(transcript) <= c["single_pass_chars"]:
-        out = chat(system, with_materials(f"以下是录音转录稿：\n\n<transcript>\n{transcript}\n</transcript>"), model)
+        out = generate(system, with_materials(f"以下是录音转录稿：\n\n<transcript>\n{transcript}\n</transcript>"))
         if progress:
             progress(1.0)
         return out
@@ -61,15 +84,15 @@ def summarize(transcript: str, prompt: str | None = None, model: str | None = No
     parts = _chunks(transcript, c["chunk_chars"])
     notes = []
     for i, part in enumerate(parts, 1):
-        notes.append(chat(
+        notes.append(generate(
             "你是笔记助手。请对这段录音转录片段做详细笔记：按顺序列出讲到的所有要点、定义、例子、"
             "数据和结论，保留时间戳，不要遗漏细节，不要写开场白。",
-            f"第 {i}/{len(parts)} 段：\n\n<transcript>\n{part}\n</transcript>", model))
+            f"第 {i}/{len(parts)} 段：\n\n<transcript>\n{part}\n</transcript>"))
         if progress:
             progress(i / (len(parts) + 1))
     merged = "\n\n".join(f"## 片段 {i}\n{n}" for i, n in enumerate(notes, 1))
-    out = chat(system, with_materials("录音较长，已分段整理成笔记，请基于这些笔记完成整体总结：\n\n"
-                                      f"<notes>\n{merged}\n</notes>"), model)
+    out = generate(system, with_materials("录音较长，已分段整理成笔记，请基于这些笔记完成整体总结：\n\n"
+                                      f"<notes>\n{merged}\n</notes>"))
     if progress:
         progress(1.0)
     return out

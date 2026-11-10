@@ -1,0 +1,7 @@
+# Offline tests only: no GPU packages, model weights or API credentials required.
+anthropic
+openai
+numpy
+soundfile
+pyyaml
+python-dotenv

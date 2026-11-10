@@ -18,8 +18,14 @@
 - 本地语音识别，支持中文、英文和自动语言检测。
 - 按项目或课程管理任务，可关联本机文件夹。
 - 导入 PDF、PPT、Word、图片和文本资料，为总结与问答提供上下文。
+- 项目资料库：自动收录项目文件夹里的既往资料与同项目其他录音的转录稿、笔记，问答和总结时按相关度检索片段参考并注明出处（配置项 `library`）。
 - 切换大模型、总结模板，保存多个总结版本和独立问答对话。
 - 按处理阶段重跑，支持仅重新总结已有转录稿。
+- 手机和平板适配、独立后台上传、分片重试和上传进度。
+- 本地转录与远程总结分别排队，总结支持限流并发和模型自动回退。
+- 本地 Markdown 与公式渲染依赖，支持多行公式和实时问答渲染。
+
+版本变化见 [更新记录](CHANGELOG.md)，开发、测试和发布流程见 [贡献指南](CONTRIBUTING.md)。
 
 ## 环境准备
 
@@ -123,6 +129,10 @@ OpenAI 配置使用 Responses API。兼容服务的接口模式、模型 ID、�
 
 首次转录会通过 ModelScope 下载 Qwen3-ASR 和对齐模型到 `models/`，需要联网并预留数 GB 空间。后续可复用下载的模型。默认使用 1.7B 转录模型与 0.6B 对齐器，显存不足时可按下方说明调整。
 
+上传开始后，每份任务固定自己的录音、课件、项目和设置。可以通过「另建任务」继续上传其他录音，侧栏的「上传任务」可查看各自进度；切换应用内页面不会取消上传。上传仍依赖当前浏览器页面，刷新或关闭页面会提示确认。
+
+网页任务使用两条队列：本地转码、切段、转录和说话人区分依次执行，远程总结默认同时处理两份（`pipeline.summary_workers`）。前一份录音进入总结后，下一份即可开始本地处理。页面分别显示转录、总结的排队位置与当前使用的模型。重启后按已写入的阶段检查点恢复；仅重新总结直接进入总结队列。
+
 ## 日常使用
 
 ### 命令行
@@ -175,7 +185,13 @@ OpenAI 配置使用 Responses API。兼容服务的接口模式、模型 ID、�
 
 在 `llm.providers` 下增加服务商，在其 `models` 下增加模型。模型选择值统一采用 `服务商ID:模型ID`。网页会尝试检测模型可用性，部分兼容服务未提供模型列表接口时仍可手动选择。
 
+在 `summary.fallback_models` 中按顺序填写备用模型 ID。默认模型调用失败、正文首字超时（`first_token_timeout_sec`）、正文停顿超时（`idle_timeout_sec`）或整次调用超时（`attempt_timeout_sec`）后，会关闭该次连接并切换到下一个模型；失败的半篇输出不会保存。SDK 不额外重复重试同一模型。手动选择后备链中的模型时从该位置开始，选择其他模型时会先尝试所选模型，再使用默认后备链。长转录已完成的分段笔记会保留，后续分段继续使用成功的后备模型。总结版本记录实际生成模型。
+
+Markdown 和公式渲染依赖随程序提供，平板无需额外访问 CDN。支持 `\(...\)`、`\[...\]`、`$...$`、`$$...$$`；代码块中的公式示例保留原文。
+
 使用 Anthropic 时，在 `.env` 填写 `ANTHROPIC_API_KEY`，在本地配置的 `anthropic.models` 中填写真实模型 ID，并将三个 `summary` 模型字段设为 `anthropic:实际模型ID`。接入使用 Bearer token 的 Messages 兼容服务时，可将其 `key_env` 指向自己定义的、以 `AUTH_TOKEN` 结尾的环境变量。
+
+通过 CC Switch 管理 Claude 配置时，可给对应服务商设置 `credentials_from: claude_settings`。程序仅在当前 Claude 配置与该服务商地址一致时读取最新密钥；切换到其他服务商不会替换原服务商的凭据。密钥变化会更新 API 客户端和模型可用性缓存。首次连接或更换地址时仍需同步该服务商的 `base_url` 和保存的环境变量。
 
 ### 说话人区分
 
@@ -198,6 +214,37 @@ OpenAI 配置使用 Responses API。兼容服务的接口模式、模型 ID、�
 | `device` | 设为 `cpu` 使用 CPU，推理速度取决于硬件 |
 | `materials.soffice` | 填写本机 LibreOffice 可执行文件路径 |
 
+### 手机 / 平板访问（经自己的 VPS 中转）
+
+启动器可开一条 SSH 反向隧道，把本机服务映射到 VPS 的回环端口，再由 VPS 上的 nginx 以 HTTPS 和密码对外提供。手机和平板只需浏览器，不必安装 VPN。关闭启动器即断开隧道。
+
+1. 在 `config.local.yaml` 的 `relay` 中填写 `enabled: true`、VPS 的 SSH 登录、私钥路径和对外地址。私钥需能免密登录 VPS。
+2. 在 VPS 上配置 nginx，示例如下。`proxy_set_header X-Notes-Relay 1` 用于告诉程序请求来自远程设备，远程设备无法使用打开文件夹等电脑端操作。
+
+```nginx
+server {
+    listen 8448 ssl;
+    server_name your-domain;
+    ssl_certificate     /etc/letsencrypt/live/your-domain/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain/privkey.pem;
+    auth_basic "notes";
+    auth_basic_user_file /etc/nginx/notes.htpasswd;
+    client_max_body_size 2g;
+    location / {
+        proxy_pass http://127.0.0.1:18765;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Notes-Relay 1;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+3. 用 `htpasswd` 或 `openssl passwd -apr1` 生成密码文件，放行防火墙端口后重载 nginx。
+
 ## HTTP API
 
 服务启动后可在 `http://127.0.0.1:8000/docs` 查看交互式 API 文档。
@@ -206,6 +253,7 @@ OpenAI 配置使用 Responses API。兼容服务的接口模式、模型 ID、�
 | --- | --- | --- |
 | GET | `/info` | 模型、模板与默认配置 |
 | GET | `/models` | 大模型列表与可用性 |
+| GET | `/queue` | 本地处理和远程总结的排队、执行数量 |
 | POST | `/jobs` | multipart 上传 `file`，可传多个文件 |
 | GET | `/jobs` | 任务列表 |
 | GET | `/jobs/{id}` | 状态、阶段与进度 |
@@ -230,19 +278,32 @@ curl.exe http://127.0.0.1:8000/jobs/JOB_ID/files/transcript.md -o transcript.md
 
 ## 数据处理与提交检查
 
-原始录音、转码音频和语音转录在本机处理。启用总结或问答时，程序会将转录文字、提问，以及相关课件文字发送至自己配置的大模型服务商。开启 `vision` 时还会发送抽样后的课件页面图片。首次下载模型和网页加载外部脚本、样式时也需要网络访问。
+原始录音、转码音频和语音转录在本机处理。启用总结或问答时，程序会将转录文字、提问，以及相关课件文字发送至自己配置的大模型服务商。开启 `vision` 时还会发送抽样后的课件页面图片。首次下载模型需要网络访问；网页的 Markdown、公式脚本、样式和字体随程序提供。
 
 应用默认监听回环地址 `127.0.0.1`，提供操作本机项目文件夹的接口，适用于个人电脑上的本机访问。
 
 `.env`、`config.local.yaml`、录音、课件、`data/`、`models/`、`samples/`、Python 环境和缓存已配置为 Git 忽略项。分享项目时请使用 Git 仓库源码或 GitHub 源码下载功能。
 
-提交前运行以下检查。脚本读取 Git 暂存区内容，检查常见凭据格式、私人文件路径和大文件，输出文件名与行号。GitHub Actions 会在推送与 Pull Request 时执行同一检查和 Python 语法检查。
+提交前运行以下检查。脚本读取 Git 暂存区内容，检查常见凭据格式、私人文件路径和大文件，输出文件名与行号。GitHub Actions 会在推送与 Pull Request 时执行同一检查、Python 语法检查、离线单元测试和浏览器测试。
 
 ```powershell
-git add app cli.py launcher.py config.yaml .env.example .gitignore requirements.txt uv.toml README.md LICENSE scripts .github
+git add app cli.py launcher.py config.yaml .env.example .gitignore requirements.txt requirements-test.txt uv.toml README.md CHANGELOG.md CONTRIBUTING.md LICENSE scripts tests .github
 .venv\Scripts\python.exe scripts/check_public_source.py
 git diff --cached --stat
 ```
+
+## 更新已安装的程序
+
+等待当前上传和处理完成后停止服务，在项目目录执行：
+
+```powershell
+git switch main
+git pull --ff-only
+uv pip install -r requirements.txt
+.venv\Scripts\python.exe launcher.py
+```
+
+本地 `.env`、`config.local.yaml` 和数据目录由 Git 忽略。新版增加的可选配置请参考 `config.yaml`，合并需要的字段到自己的本地配置。
 
 ## 常见问题
 
@@ -261,5 +322,7 @@ git diff --cached --stat
 ## 许可证与第三方组件
 
 本仓库自有源码采用 MIT 许可证，详见 `LICENSE`。模型权重和第三方组件适用各自许可证与使用条件。
+
+本地打包的 Marked 和 KaTeX 保留各自的 MIT 许可证。版本、包来源和摘要记录在 `app/static/vendor/sources.json`，对应许可证与资源放在各自的版本目录中。
 
 Qwen3-ASR 与 ForcedAligner 的模型卡标注 Apache-2.0。PyMuPDF 提供 AGPL 与商业许可，分发包含该组件的应用时应遵循相应条款。[Qwen3-ASR](https://github.com/Qwen/Qwen3-ASR)、[PyMuPDF 许可说明](https://pymupdf.readthedocs.io/en/latest/about.html)

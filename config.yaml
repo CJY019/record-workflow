@@ -4,12 +4,24 @@ server:
   host: 127.0.0.1
   port: 8000
 
+# 手机/平板远程访问：启动器开一条 SSH 反向隧道到 VPS，由 VPS 上的 nginx（HTTPS + 密码）对外提供
+# 关闭启动器隧道即断开。VPS 端配置见 README「手机 / 平板访问」
+relay:
+  enabled: false
+  ssh: user@your-vps          # VPS 的 SSH 登录
+  key: ~/.ssh/id_ed25519            # SSH 私钥
+  remote_port: 18765                # 隧道在 VPS 上监听的端口（仅 127.0.0.1）
+  url: https://your-domain:8448   # 手机访问地址（仅用于显示）
+
 paths:
   jobs_dir: data/jobs
   models_dir: models
 
 device: cuda          # cuda / cpu
 unload_after_use: true # 每个阶段结束后释放显存（8GB 显卡建议 true）
+
+pipeline:
+  summary_workers: 2    # 远程总结并发数；本地 GPU 阶段始终串行，互不占用对方队列
 
 vad:
   max_segment_sec: 30     # 合并后每段最长秒数
@@ -69,6 +81,10 @@ summary:
   single_pass_chars: 60000   # 转录超过这个字数走分段 map-reduce
   chunk_chars: 20000
   timeout_sec: 600
+  fallback_models: []        # 按顺序填写备用模型 ID；默认模型失败后依次切换
+  first_token_timeout_sec: 90 # 建连到首个正文的最长等待时间（心跳不算正文）
+  idle_timeout_sec: 90       # 正文输出停顿上限
+  attempt_timeout_sec: 600   # 单次模型调用的总耗时上限，不叠加 SDK 重试
 
 # 问答输入框上方的快捷提问按钮（label 显示在按钮上，text 是实际发送的内容）
 quick_prompts:
@@ -86,3 +102,12 @@ materials:
   image_long_side: 1280     # 页面图片长边像素
   max_images: 60            # 每次最多发给模型的页面图片数（超出则均匀抽样）
   max_text_chars: 80000     # 课件文字上限
+
+# 项目资料库：项目文件夹里的既往资料 + 同项目其他录音的转录稿/笔记，问答和总结时按相关度检索参考
+library:
+  enabled: true
+  chunk_chars: 700          # 切片长度（字）
+  chat_chars: 12000         # 每次提问附带的资料片段上限（字）
+  summary_chars: 16000      # 生成总结时附带的资料片段上限（字）
+  max_file_mb: 200          # 超过此大小的文件不收录
+  max_pages: 800            # 单个文件最多收录页数

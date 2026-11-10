@@ -5,11 +5,14 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+import ipaddress
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import chat, jobs, llm, materials, projects, summaries
+from . import chat, jobs, library, llm, materials, projects, summaries
 from .config import CFG
 from .pipeline import STAGES
 from .stages import summarize as summ
@@ -21,10 +24,45 @@ OUTPUT_FILES = {"transcript.md", "transcript.srt", "transcript.txt", "transcript
 @asynccontextmanager
 async def lifespan(_):
     jobs.start_worker()
-    yield
+    try:
+        yield
+    finally:
+        jobs.stop_workers()
 
 
 app = FastAPI(title="录音转录总结", lifespan=lifespan)
+app.mount("/assets", StaticFiles(directory=Path(__file__).parent / "static"), name="assets")
+
+# ---- 访问控制：服务只接受本机连接；手机/平板经 VPS 中转（SSH 隧道）进来时，
+#      VPS 上的 nginx 会加 X-Notes-Relay 头，据此区分「电脑本机」与「远程设备」 ----
+RELAY_HEADER = "x-notes-relay"
+
+
+def _ip(request: Request):
+    try:
+        ip = ipaddress.ip_address(request.client.host if request.client else "")
+        return ip.ipv4_mapped or ip if ip.version == 6 else ip
+    except ValueError:
+        return None
+
+
+def is_local(request: Request) -> bool:
+    ip = _ip(request)
+    return bool(ip and ip.is_loopback) and RELAY_HEADER not in request.headers
+
+
+@app.middleware("http")
+async def _access_guard(request: Request, call_next):
+    ip = _ip(request)
+    if not ip or not ip.is_loopback:
+        return JSONResponse({"detail": "该设备无权访问"}, status_code=403)
+    return await call_next(request)
+
+
+def _local_only(request: Request):
+    """弹出资源管理器/选择文件夹对话框的操作只会出现在电脑屏幕上，远程设备不允许调用"""
+    if not is_local(request):
+        raise HTTPException(403, "这个操作只能在电脑上进行")
 
 
 def _opt_bool(v: str | None):
@@ -51,9 +89,67 @@ def _opt_int(v: str | None):
     return int(v) if v not in (None, "") else None
 
 
+# ---------- 分片上传（手机经中转网络不稳：小块并行 + 失败重试） ----------
+from .config import TMP_DIR  # noqa: E402
+
+UP_DIR = TMP_DIR / "uploads"
+UP_DIR.mkdir(parents=True, exist_ok=True)
+for _d in UP_DIR.iterdir():  # 清理一天前没用完的分片
+    if _d.is_dir() and _d.stat().st_mtime < __import__("time").time() - 86400:
+        shutil.rmtree(_d, ignore_errors=True)
+
+
+def _up_dir(uid: str) -> Path:
+    if not uid.isalnum() or len(uid) > 40:
+        raise HTTPException(400, "bad upload id")
+    return UP_DIR / uid
+
+
+@app.post("/uploads/{uid}/{n}")
+async def upload_chunk(uid: str, n: int, request: Request):
+    d = _up_dir(uid)
+    d.mkdir(exist_ok=True)
+    tmp = d / f"{n}.tmp"
+    with open(tmp, "wb") as f:
+        async for block in request.stream():
+            f.write(block)
+    tmp.replace(d / f"{n}")
+    return {"ok": True, "size": (d / f"{n}").stat().st_size}
+
+
+def _take_upload(uid: str, count: int, size: int) -> Path:
+    """把分片按顺序拼成一个文件，校验总大小"""
+    d = _up_dir(uid)
+    parts = [d / str(i) for i in range(count)]
+    if not all(p.exists() for p in parts) or sum(p.stat().st_size for p in parts) != size:
+        raise HTTPException(400, "上传不完整，请重试")
+    with tempfile.NamedTemporaryFile(delete=False) as out:
+        for p in parts:
+            with open(p, "rb") as f:
+                shutil.copyfileobj(f, out, 1 << 20)
+    shutil.rmtree(d, ignore_errors=True)
+    return Path(out.name)
+
+
+class _Up:
+    """让分片上传的文件看起来像 UploadFile（create_job 里复用同一套逻辑）"""
+    def __init__(self, path: Path, name: str):
+        self.filename, self.file = name, open(path, "rb")
+        self.path = path
+
+
+def _uploads(spec: str | None) -> list:
+    out = []
+    for it in json.loads(spec or "[]"):
+        out.append(_Up(_take_upload(str(it["id"]), int(it["count"]), int(it["size"])), str(it["name"])))
+    return out
+
+
 @app.post("/jobs")
 async def create_job(
-    file: list[UploadFile] = File(...),
+    file: list[UploadFile] = File(default=[]),
+    uploads: str | None = Form(None),       # JSON：[{id,count,size,name}] 分片上传好的录音
+    attach_uploads: str | None = Form(None),  # 同上，课件
     merge: str | None = Form("false"),
     diarize: str | None = Form(None),
     language: str | None = Form(None),
@@ -83,6 +179,12 @@ async def create_job(
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             shutil.copyfileobj(up.file, tmp)
         saved.append((Path(tmp.name), _fix_name(up.filename or "audio")))
+    for up in _uploads(uploads):
+        up.file.close()
+        saved.append((up.path, _fix_name(up.filename)))
+    if not saved:
+        raise HTTPException(400, "没有收到录音文件")
+    attachments = [*attachments, *_uploads(attach_uploads)]
     params = {
         "diarize": _opt_bool(diarize),
         "language": "" if language == "auto" else (language or None),
@@ -114,12 +216,21 @@ async def create_job(
                 raise HTTPException(400, f"无法添加 {rel}: {e}")
         jobs.enqueue(j.id)
         created.append(j)
+    for up in attachments:
+        if isinstance(up, _Up):
+            up.file.close()
+            up.path.unlink(missing_ok=True)
     return {"id": created[0].id, "ids": [j.id for j in created], "queue": jobs.queue_size()}
 
 
 @app.get("/jobs")
 def list_jobs():
     return jobs.list_all()
+
+
+@app.get("/queue")
+def queue_status():
+    return jobs.queue_status()
 
 
 def _job(job_id):
@@ -132,7 +243,8 @@ def _job(job_id):
 @app.get("/jobs/{job_id}")
 def job_status(job_id: str):
     j = _job(job_id)
-    return {**j.meta, "dir": str(j.dir), "files": sorted(f for f in OUTPUT_FILES if j.f(f).exists())}
+    return {**j.meta, **jobs.queue_positions().get(job_id, {}), "dir": str(j.dir),
+            "files": sorted(f for f in OUTPUT_FILES if j.f(f).exists())}
 
 
 @app.get("/jobs/{job_id}/result")
@@ -168,29 +280,23 @@ class JobPatch(BaseModel):
 @app.patch("/jobs/{job_id}")
 def job_patch(job_id: str, req: JobPatch):
     """重命名任务 / 移动到项目"""
-    j = _job(job_id)
-    busy = j.meta.get("status") in ("running", "queued")
-    if req.project is not None and busy:
-        raise HTTPException(409, "任务正在处理，完成后才能移动")
-    if req.title is not None:
-        j.update(title=req.title.strip() or None)
-    if req.project is not None:
-        if req.project and not projects.get(req.project):
-            raise HTTPException(400, "项目不存在")
-        j.update(project=req.project or None)
-    if not busy:  # 文件夹跟着标题/项目走（处理中则下次再移）
-        try:
-            j = jobs.relocate(j)
-        except OSError as e:
-            raise HTTPException(500, f"移动文件夹失败（可能有文件正被打开）：{e}")
+    try:
+        j = jobs.patch_job(_job(job_id), title=req.title, project=req.project)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except OSError as e:
+        raise HTTPException(500, f"移动文件夹失败（可能有文件正被打开）：{e}")
     return j.meta | {"dir": str(j.dir)}
 
 
 @app.post("/jobs/{job_id}/reveal")
-def job_reveal(job_id: str):
+def job_reveal(job_id: str, request: Request):
     """在资源管理器中打开任务目录（仅本机）"""
     import os
 
+    _local_only(request)
     j = _job(job_id)
     os.startfile(j.dir)
     return {"path": str(j.dir)}
@@ -272,9 +378,10 @@ class FolderReq(BaseModel):
 
 
 @app.post("/projects/{pid}/folder")
-def proj_folder(pid: str, req: FolderReq):
+def proj_folder(pid: str, req: FolderReq, request: Request):
     import os
 
+    _local_only(request)
     p = _proj(pid)
     folder = req.folder
     if folder is None:
@@ -295,7 +402,23 @@ def proj_folder(pid: str, req: FolderReq):
                     moved += str(j.dir) != before
                 except (RuntimeError, OSError) as e:
                     skipped.append(f"{m.get('title') or m.get('filename')}: {e}")
+    library.refresh_async(pid, min_interval=0)  # 换了文件夹：重建资料库
     return p | {"moved": moved, "skipped": skipped}
+
+
+@app.get("/projects/{pid}/library")
+def proj_library(pid: str):
+    """项目资料库状态；顺便检查是否需要更新"""
+    _proj(pid)
+    library.refresh_async(pid)
+    return library.status(pid)
+
+
+@app.post("/projects/{pid}/library/rebuild")
+def proj_library_rebuild(pid: str):
+    _proj(pid)
+    library.refresh_async(pid, min_interval=0)
+    return library.status(pid) | {"running": True}
 
 
 @app.get("/projects/{pid}/files")
@@ -305,9 +428,10 @@ def proj_files(pid: str):
 
 
 @app.post("/projects/{pid}/reveal")
-def proj_reveal(pid: str):
+def proj_reveal(pid: str, request: Request):
     import os
 
+    _local_only(request)
     p = _proj(pid)
     if not p.get("folder") or not os.path.isdir(p["folder"]):
         raise HTTPException(400, "项目还没有关联文件夹")
@@ -394,9 +518,12 @@ def job_rerun(job_id: str, req: RerunReq):
     if j.meta.get("status") in ("queued", "running"):
         raise HTTPException(409, "任务正在执行")
     params = req.model_dump(exclude={"from_stage"})
-    if params.get("prompt") or params.get("model") or params.get("extra") is not None:
+    if req.from_stage == "summarize" or params.get("prompt") or params.get("model") or params.get("extra") is not None:
         params["summarize"] = True
-    jobs.rerun(j, req.from_stage, params)
+    try:
+        jobs.rerun(j, req.from_stage, params)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
     return {"id": j.id, "status": "queued", "from_stage": req.from_stage}
 
 
@@ -405,7 +532,10 @@ def job_delete(job_id: str):
     j = _job(job_id)
     if j.meta.get("status") in ("queued", "running"):
         raise HTTPException(409, "任务正在执行")
-    jobs.delete(j)
+    try:
+        jobs.delete(j)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
     return {"deleted": job_id}
 
 
@@ -478,9 +608,10 @@ def summarize_text(req: SummReq):
 
 
 @app.get("/info")
-def info():
-    return {"prompts": summ.list_prompts(), "stages": STAGES, "asr_model": CFG["asr"]["model"],
+def info(request: Request):
+    return {"local": is_local(request), "prompts": summ.list_prompts(), "stages": STAGES, "asr_model": CFG["asr"]["model"],
             "models": llm.list_models(), "summary_model": CFG["summary"]["model"],
+            "summary_models": llm.summary_models(),
             "chat_model": CFG["summary"].get("chat_model") or CFG["summary"]["model"],
             "diarize_default": CFG["diarization"]["default"],
             "quick_prompts": CFG.get("quick_prompts", [])}
@@ -488,7 +619,8 @@ def info():
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})  # 手机/平板总能拿到最新页面
 
 
 if __name__ == "__main__":

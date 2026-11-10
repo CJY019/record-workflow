@@ -147,8 +147,20 @@ def stream_answer(job: Job, cid: str, question: str, model: str | None = None):
     conv = get(job, cid)
     first = not conv["messages"]
     api_msgs = [{"role": m["role"], "content": m["content"]} for m in conv["messages"][-20:]]
-    api_msgs.append({"role": "user", "content": question})
-    from . import materials
+    from . import library, materials
+
+    lib = ""
+    pid = job.meta.get("project")
+    if pid and library.enabled():
+        library.refresh_async(pid)
+        prev = next((m["content"] for m in reversed(conv["messages"]) if m["role"] == "user"), "")
+        try:
+            lib = library.context_text(pid, question + "\n" + prev, library._cfg()["chat_chars"],
+                                       exclude_job=job.id,
+                                       exclude_names={m["name"] for m in materials.list_all(job)})
+        except Exception:
+            lib = ""
+    api_msgs.append({"role": "user", "content": f"{lib}\n\n{question}" if lib else question})
 
     mats = materials.context_parts(job, llm.supports_vision(model, "chat_model"))
     if mats:  # 课件作为对话开头的固定上下文（Anthropic 下会被缓存）

@@ -49,7 +49,7 @@ def main() -> int:
         if len(content) > 2 * 1024 * 1024:
             findings.append(f"{path}: exceeds 2 MiB")
             continue
-        if path.suffix.lower() in {".png", ".ico"}:
+        if path.suffix.lower() in {".png", ".ico", ".woff2", ".woff", ".ttf"}:
             continue
         try:
             lines = content.decode("utf-8").splitlines()

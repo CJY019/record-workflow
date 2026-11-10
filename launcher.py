@@ -16,12 +16,12 @@ os.system("title 录音笔记 - 关闭此窗口即停止服务")
 from app.config import CFG  # noqa: E402  (同时把缓存/临时目录指向工作区)
 
 HOST, PORT = CFG["server"]["host"], CFG["server"]["port"]
-URL = f"http://{HOST}:{PORT}"
+URL = f"http://127.0.0.1:{PORT}"  # 本机始终用回环地址打开
 
 
 def port_busy() -> bool:
     with socket.socket() as s:
-        return s.connect_ex((HOST, PORT)) == 0
+        return s.connect_ex(("127.0.0.1", PORT)) == 0
 
 
 def open_when_ready():
@@ -45,7 +45,11 @@ if __name__ == "__main__":
         time.sleep(3)
         sys.exit(0)
     print("录音笔记 正在启动…")
+    from app import relay
+
+    relay.bind_children_to_self()  # 关闭窗口时连同 SSH 隧道一起结束
     threading.Thread(target=open_when_ready, daemon=True).start()
+    relay.start(PORT)  # 手机/平板经 VPS 访问（config 中 relay.enabled）
     import uvicorn
 
     from app.main import app

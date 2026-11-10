@@ -2,12 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>录音笔记</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="/assets/vendor/katex-0.16.9/katex.min.css">
+<script src="/assets/vendor/marked-12.0.2/marked.min.js"></script>
+<script src="/assets/vendor/katex-0.16.9/katex.min.js"></script>
 <style>
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --side: #f1f1ee; --fg: #1c1c1e; --muted: #77777c; --faint: #a3a3a8;
@@ -20,21 +19,23 @@
     --shadow: none; }
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; overflow: hidden; }
 body { margin: 0; background: var(--bg); color: var(--fg);
   font: 14px/1.65 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
-.app { display: grid; grid-template-columns: 272px 1fr; height: 100vh; }
+.app { display: grid; grid-template-columns: 272px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  height: 100vh; height: 100dvh; overflow: hidden;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 
 /* 侧栏 */
-aside { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+aside { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
 .brand { padding: 20px 20px 12px; font-weight: 650; font-size: 15px; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
 .brand i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
 .new { margin: 0 12px 12px; padding: 9px 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px;
   text-align: left; color: var(--fg); box-shadow: var(--shadow); }
 .new:hover { border-color: var(--accent); }
-.list { overflow-y: auto; overflow-x: hidden; padding: 0 8px 16px; flex: 1; }
+.list { overflow-y: auto; overflow-x: hidden; padding: 0 8px 16px; flex: 1; min-height: 0; overscroll-behavior-y: contain; }
 .list h6 { margin: 12px 12px 6px; font-size: 11px; font-weight: 500; color: var(--faint); letter-spacing: .06em; }
 .item { position: relative; padding: 8px 8px 8px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 .item .body { flex: 1; min-width: 0; }
@@ -52,14 +53,17 @@ aside { background: var(--side); border-right: 1px solid var(--line); display: f
 .proj.open .caret { transform: rotate(90deg); }
 .proj .pn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .proj .cnt { color: var(--faint); font-weight: 400; font-size: 12px; }
-.fmenu { position: fixed; z-index: 50; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 4px; min-width: 160px; }
+.fmenu { position: fixed; z-index: 50; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 4px; min-width: 160px;
+  max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; }
 .fmenu button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--fg); }
 .fmenu button:hover { background: var(--hover); }
 .fmenu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
 .fmenu .lbl { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; }
 .crumb { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .crumb a { color: inherit; text-decoration: none; } .crumb a:hover { color: var(--accent); }
-.ver { display: flex; align-items: center; gap: 4px; }
+.ver { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.ver select { flex: 1; min-width: 0; }
+.ver button { flex: none; }
 .quick { display: flex; gap: 6px; overflow-x: auto; padding: 0 2px 8px; scrollbar-width: none; }
 .quick::-webkit-scrollbar { display: none; }
 .qbtn { flex: none; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); }
@@ -77,12 +81,17 @@ aside { background: var(--side); border-right: 1px solid var(--line); display: f
 .mini b { display: block; height: 100%; background: var(--accent); transition: width .4s; }
 
 /* 主区 */
-main { overflow-y: auto; min-height: 0; }
+main { position: relative; overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; overscroll-behavior-y: contain; }
 .wrap { max-width: 860px; margin: 0 auto; padding: 40px 32px 32px; }
-h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -.01em; }
+h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .sub { color: var(--muted); font-size: 13px; }
 
 /* 上传 */
+.upload-fields { margin: 0; padding: 0; border: none; min-width: 0; }
+.upload-fields:disabled .drop { cursor: default; opacity: .65; }
+.upload-row .s { display: block; overflow-wrap: anywhere; }
+.upload-overview:empty { display: none; }
+.upload-overview { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 4px; }
 .drop { margin-top: 24px; border: 1.5px dashed var(--line); border-radius: var(--radius); background: var(--panel);
   padding: 40px 20px; text-align: center; cursor: pointer; transition: .15s; }
 .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
@@ -132,6 +141,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: no
 
 /* Markdown */
 .md { padding-top: 8px; overflow-wrap: anywhere; }
+.md img { max-width: 100%; height: auto; }
+.md .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 .md h1 { font-size: 20px; margin: 24px 0 8px; } .md h2 { font-size: 17px; margin: 28px 0 8px; }
 .md h3 { font-size: 15px; margin: 20px 0 6px; }
 .md table { border-collapse: collapse; width: 100%; font-size: 13px; display: block; overflow-x: auto; }
@@ -168,7 +179,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: no
 
 /* 问答 */
 .wrap.wide { max-width: 1120px; }
-.chatlayout { display: grid; grid-template-columns: 220px 1fr; gap: 28px; }
+.chatlayout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; }
 .convs { position: sticky; top: 0; align-self: start; padding-top: 16px; max-height: calc(100vh - 40px); overflow-y: auto; }
 .newchat { width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
 .newchat:hover { border-color: var(--accent); color: var(--accent); }
@@ -180,15 +191,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: no
 .conv:hover .more, .conv.on .more, .conv.menuopen .more { visibility: visible; }
 .conv .more:hover { background: var(--line); }
 .conv input { flex: 1; min-width: 0; font-size: 13px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); outline: none; }
-.cpop { position: absolute; right: 4px; top: 32px; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; min-width: 120px; }
-.cpop button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
-.cpop button:hover { background: var(--hover); }
 .convs .group { font-size: 11px; color: var(--faint); margin: 12px 12px 4px; letter-spacing: .04em; }
 .chat { display: flex; flex-direction: column; min-height: calc(100vh - 210px); min-width: 0; }
 .chat-title { font-size: 13px; color: var(--muted); padding-top: 18px; }
 .msgs { flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 20px 0; }
-.msg.user { align-self: flex-end; max-width: 80%; background: var(--accent-soft); padding: 10px 14px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; }
-.msg.ai { max-width: 100%; }
+.msg.user { align-self: flex-end; min-width: 0; max-width: 80%; background: var(--accent-soft); padding: 10px 14px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.ai { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .msg.ai .md { padding: 0; }
 .msg.ai .md > :first-child { margin-top: 0; }
 .typing::after { content: "▍"; animation: pulse 1s infinite; color: var(--accent); }
@@ -198,31 +206,77 @@ summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: no
 .composer { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 24%); padding: 20px 0 8px; }
 .box { display: flex; gap: 8px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 14px; box-shadow: var(--shadow); }
 .box:focus-within { border-color: var(--accent); }
-.box textarea { flex: 1; border: none; outline: none; background: none; resize: none; max-height: 200px; padding: 6px 0; }
+.box textarea { flex: 1; min-width: 0; border: none; outline: none; background: none; resize: none; max-height: 200px; padding: 6px 0; }
 .send { border: none; background: var(--accent); color: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 16px; flex: none; }
 .send:disabled { opacity: .4; }
 .msel { border: none; background: var(--side); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--muted); max-width: 150px; outline: none; flex: none; }
 .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 0 6px; border-bottom: 1px dashed var(--line); margin-bottom: 8px; }
+.toolbar select.in.sm { max-width: 100%; min-width: 0; }
 .toolbar .spacer { flex: 1; }
+.folderline { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--faint); word-break: break-all; }
+.folderline .spacer { flex: 1; }
+.folderline a { color: var(--fg); }
+.btn.sm, .ghost.sm { padding: 5px 12px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
 .in.sm { width: auto; padding: 5px 8px; font-size: 13px; border-radius: 8px; }
 .ghost:disabled { opacity: .5; cursor: default; }
+.libbox { margin-top: 24px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.libbox .libhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.libbox .spacer { flex: 1; }
+.libbox details { margin-top: 6px; }
 .hint { font-size: 11px; color: var(--faint); text-align: center; margin-top: 6px; }
 .empty { color: var(--faint); text-align: center; padding: 60px 0; }
 
-@media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; }
-  aside { border-right: none; border-bottom: 1px solid var(--line); max-height: 40vh; }
-  .wrap { padding: 24px 16px; }
+.mbar, .scrim, .convtoggle { display: none; }
+@media (hover: none) {  /* 触屏没有悬停：⋯ 按钮常显 */
+  .item .more, .proj .more, .conv .more, .mat .x { visibility: visible; }
+  .in, .in.sm, .msel, .box textarea, .item input, .proj input, .conv input { font-size: 16px; }
+}
+@media (min-width: 961px) and (max-width: 1180px) {
+  .app { grid-template-columns: 224px minmax(0, 1fr); }
+  .wrap { padding: 28px 24px 24px; }
+  .chatlayout { grid-template-columns: 180px minmax(0, 1fr); gap: 20px; }
+}
+@media (max-width: 960px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); }
+  .mbar { display: flex; align-items: center; gap: 8px; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--side); }
+  .mbar .mt { flex: 1; font-weight: 650; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mbar .ib { border: none; background: none; font-size: 20px; width: 40px; height: 40px; border-radius: 8px; color: var(--fg); }
+  .mbar .ib:active { background: var(--hover); }
+  aside { position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(84vw, 320px); border-right: 1px solid var(--line);
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    transform: translateX(-100%); transition: transform .2s; visibility: hidden; }
+  .side-open aside { transform: none; visibility: visible; box-shadow: 0 0 24px rgba(0,0,0,.18); }
+  .side-open .scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.3); }
+  .item, .proj, .conv { padding-top: 10px; padding-bottom: 10px; }
+  .wrap { padding: 20px 14px 24px; }
+  h1 { font-size: 19px; }
+  .head .actions { width: 100%; }
+  .tabs { overflow-x: auto; scrollbar-width: none; }
+  .tab { flex: none; }
+  .steps { flex-wrap: wrap; }
+  .in, textarea, select { font-size: 16px; }  /* 避免 iOS 聚焦输入框时自动放大 */
+  .msel { max-width: 110px; }
+  .hint { display: none; }
+  .folderline { flex-wrap: wrap; }
   .chatlayout { grid-template-columns: 1fr; gap: 0; }
-  .convs { position: static; max-height: 180px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .convs { display: none; position: static; max-height: 45vh; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .chatlayout.showconvs .convs { display: block; }
+  .convtoggle { display: inline-block; align-self: flex-start; margin-top: 10px; border: 1px solid var(--line); background: var(--panel);
+    border-radius: 8px; padding: 5px 10px; font-size: 13px; color: var(--muted); }
+  .chat { min-height: calc(100dvh - 230px); }
+  .msg.user { max-width: 92%; }
+  .md pre, .md table { max-width: 100%; overflow-x: auto; display: block; }
 }
 </style>
 </head>
 <body>
 <div class="app">
+  <header class="mbar"><button class="ib" onclick="toggleSide()" title="菜单">☰</button>
+    <span class="mt" id="mtitle">录音笔记</span><button class="ib" onclick="newTask()" title="新建任务">＋</button></header>
+  <div class="scrim" onclick="toggleSide(false)"></div>
   <aside>
     <div class="brand"><i></i>录音笔记</div>
-    <button class="new" onclick="go(null)">＋ 新建任务</button>
+    <button class="new" onclick="newTask()">＋ 新建任务</button>
     <div class="list" id="list"></div>
   </aside>
   <main id="main"></main>
@@ -236,10 +290,26 @@ const STAGE_NAME = Object.fromEntries(STAGES);
 const fmtDur = s => !s ? "" : s >= 3600 ? `${Math.floor(s/3600)} 小时 ${Math.round(s%3600/60)} 分` : `${Math.max(1, Math.round(s/60))} 分钟`;
 const fmtSize = b => b > 1048576 ? (b/1048576).toFixed(1) + " MB" : Math.round(b/1024) + " KB";
 
-let INFO = {prompts: [], models: []}, JOBS = [], cur = null, conv = null, convs = [], tab = "summary", picked = [], lastSig = "";
+let INFO = {prompts: [], models: []}, JOBS = [], cur = null, conv = null, convs = [], tab = "summary", lastSig = "", viewVersion = 0;
 const PROMPT_NAME = {lecture: "课程笔记", brief: "简要总结", meeting: "会议纪要"};
 const pName = p => PROMPT_NAME[p] || p;
 const mLabel = id => (INFO.models.find(m => m.id === id) || {}).label || (id || "").split(":").pop();
+function processingLabel(j) {
+  if (j.status === "queued") return `${j.queue_lane === "summary" ? "等待总结" : "等待转录"}${j.queue_position ? ` · 第 ${j.queue_position} 位` : ""}`;
+  if (j.stage === "summarize") {
+    if (j.summary_phase === "materials") return "准备课件";
+    if (j.summary_phase === "library") return "检索课程资料";
+    return "总结中" + (j.summary_active_model ? ` · ${mLabel(j.summary_active_model)}` : "");
+  }
+  return `${STAGE_NAME[j.stage] || "处理"}中 ${Math.round((j.progress || 0) * 100)}%`;
+}
+function updateSummaryChain() {
+  const el = $("#summaryChain"), selected = $("#model")?.value;
+  if (!el) return;
+  const chain = INFO.summary_models || [INFO.summary_model];
+  const order = chain.includes(selected) ? chain.slice(chain.indexOf(selected)) : [...new Set([selected, ...chain])];
+  el.textContent = order.length > 1 ? "调用顺序：" + order.filter(Boolean).map(mLabel).join(" → ") : "";
+}
 function modelOptions(sel) {
   const groups = {};
   INFO.models.forEach(m => (groups[m.provider] ||= []).push(m));
@@ -250,34 +320,82 @@ const promptOptions = sel => INFO.prompts.map(p => `<option value="${p}" ${p ===
 
 const stem = n => String(n || "").replace(/\.[^.]+$/, "");
 const jName = j => j.title || stem(j.filename);
-let PROJECTS = [], newProject = "", uiBusy = false;
+const LOCAL = () => INFO.local !== false;  // 在电脑本机打开（手机/平板上隐藏弹窗类操作）
+let PROJECTS = [], uiBusy = false, draftSequence = 0;
+const UPLOADS = new Map();
+const DRAFT_FIELDS = ["context", "language", "prompt", "model", "diarize", "spk", "extra"];
+function makeDraft(project = "") {
+  return {id: String(++draftSequence), project, files: [], docs: [], projectFiles: [], fields: {}, merge: true,
+    status: "draft", message: ""};
+}
+let draft = makeDraft();
+const isUploading = d => d.status === "uploading" || d.status === "creating";
+function saveDraft() {
+  if (cur || $("#uploadFields")?.dataset.draft !== draft.id || isUploading(draft)) return;
+  for (const id of DRAFT_FIELDS) draft.fields[id] = $("#" + id).value;
+  draft.merge = $("#merge").checked;
+}
+function newTask(project = draft.project) {
+  draft = makeDraft(project);
+  go(null);
+}
+function openUpload(id) {
+  const d = UPLOADS.get(id);
+  if (!d) return;
+  saveDraft(); draft = d; go(null);
+}
+function drawUploads() {
+  const uploads = [...UPLOADS.values()];
+  const rows = items => items.map(d => `<div class="item upload-row ${!cur && draft === d ? "on" : ""}" data-upload="${d.id}" onclick="openUpload('${d.id}')">
+      <div class="body"><div class="t">${esc(d.projectName)} · ${esc(d.files.map(f => f.name).join("、"))}</div>
+      <div class="s"><span class="dot ${d.status === "error" ? "error" : "running"}" style="display:inline-block;margin-right:6px"></span>${esc(d.message)}</div></div></div>`).join("");
+  if ($("#uploadList")) $("#uploadList").innerHTML = uploads.length ? `<div class="sechead"><span>上传任务</span></div>` + rows(uploads) : "";
+  if ($("#uploadOverview")) $("#uploadOverview").innerHTML = rows(uploads.filter(d => d !== draft));
+  const count = uploads.filter(isUploading).length;
+  $("#mtitle").textContent = count ? `录音笔记 · ${count} 个上传中` : "录音笔记";
+}
+function updateUploadUI(d = draft) {
+  drawUploads();
+  if (cur || draft !== d || !$("#uploadFields")) return;
+  const busy = isUploading(d);
+  $("#uploadFields").disabled = busy;
+  $("#go").disabled = busy || d.projectPending || !d.files.length;
+  $("#go").textContent = d.status === "creating" ? "正在创建任务…" : busy ? "上传中…" : d.status === "error" ? "重试" : "开始处理";
+  $("#upmsg").textContent = d.message;
+  $("#nextTask").hidden = !busy;
+}
 function openState() { try { return JSON.parse(localStorage.getItem("projOpen") || "{}"); } catch { return {}; } }
 function setOpen(id, v) { const o = openState(); o[id] = v; try { localStorage.setItem("projOpen", JSON.stringify(o)); } catch {} }
 
 /* 浮动菜单：items = [{label, fn, danger} | "-" | {label, sub:true}] */
 function closeMenus() {
-  document.querySelectorAll(".fmenu").forEach(x => x.remove());
+  document.querySelectorAll(".fmenu").forEach(x => { x._anchor?.setAttribute("aria-expanded", "false"); x.remove(); });
   document.querySelectorAll(".menuopen").forEach(x => x.classList.remove("menuopen"));
-  uiBusy = !!document.querySelector(".item input, .proj input");
+  uiBusy = !!document.querySelector(".item input, .proj input, .conv input");
 }
 function popMenu(anchor, items) {
   closeMenus(); uiBusy = true;
-  const row = anchor.closest(".item, .proj, .ver"); row?.classList.add("menuopen");
+  const row = anchor.closest(".item, .proj, .ver, .conv"); row?.classList.add("menuopen");
   const m = document.createElement("div"); m.className = "fmenu";
+  m.setAttribute("role", "menu"); m._anchor = anchor; anchor.setAttribute("aria-expanded", "true");
   items.forEach(it => {
     if (it === "-") { m.appendChild(document.createElement("hr")); return; }
     if (it.sub) { const d = document.createElement("div"); d.className = "lbl"; d.textContent = it.label; m.appendChild(d); return; }
     const b = document.createElement("button"); b.textContent = it.label;
+    b.setAttribute("role", "menuitem");
     if (it.danger) b.style.color = "var(--err)";
     b.onclick = e => { e.stopPropagation(); closeMenus(); it.fn(); };
     m.appendChild(b);
   });
   document.body.appendChild(m);
   const r = anchor.getBoundingClientRect();
-  m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + "px";
+  m.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8)) + "px";
   m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
 }
 document.addEventListener("click", e => { if (!e.target.closest(".fmenu")) closeMenus(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenus(); });
+window.addEventListener("resize", closeMenus);
+document.addEventListener("scroll", e => { if (!e.target.closest?.(".fmenu")) closeMenus(); }, true);
 /* 行内重命名 */
 function inlineEdit(el, value, onSave) {
   uiBusy = true;
@@ -317,11 +435,54 @@ async function pickProjectFiles(pid, onPick) {
 }
 const J = (path, method = "GET", body) => fetch(path, {method, headers: {"Content-Type": "application/json"}, body: body && JSON.stringify(body)});
 
+// Tokenize math before Markdown can consume backslashes, underscores or asterisks.
+// Marked still owns code spans/fences, so examples of TeX remain literal code.
+function mathToken(source) {
+  const opening = /^(\\\(|\\\[|\$\$|\$)/.exec(source)?.[0];
+  if (!opening) return;
+  const closing = {"\\(":"\\)", "\\[":"\\]", "$$":"$$", "$":"$"}[opening];
+  const display = opening === "\\[" || opening === "$$";
+  if (opening === "$" && /\s|\$/.test(source[1] || " ")) return;
+  let end = opening.length;
+  while ((end = source.indexOf(closing, end)) >= 0) {
+    let slashes = 0;
+    for (let i = end - 1; i >= 0 && source[i] === "\\"; i--) slashes++;
+    if (slashes % 2) { end += closing.length; continue; }
+    const body = source.slice(opening.length, end);
+    // Do not turn ordinary prices such as "$5 and $10" into an equation.
+    if (!body.trim() || (opening === "$" && (/\s$|\n/.test(body) || /\d/.test(source[end + 1] || "")))) return;
+    return {raw: source.slice(0, end + closing.length), text: body.trim(), display};
+  }
+}
+function renderMathToken(token) {
+  return window.katex ? katex.renderToString(token.text, {
+    displayMode: token.display, throwOnError: false, trust: false, strict: "ignore"
+  }) : esc(token.raw);
+}
+if (window.marked) marked.use({extensions: [
+  {
+    name: "mathBlock", level: "block",
+    start(source) { const m = /(?:^|\n) {0,3}(?:\\\[|\$\$)/.exec(source); return m ? m.index + (m[0][0] === "\n" ? 1 : 0) : undefined; },
+    tokenizer(source) {
+      const indent = /^ {0,3}(?=\\\[|\$\$)/.exec(source)?.[0];
+      if (indent === undefined) return;
+      const token = mathToken(source.slice(indent.length));
+      if (!token?.display) return;
+      const tail = /^[ \t]*(?:\n|$)/.exec(source.slice(indent.length + token.raw.length));
+      if (tail) return {...token, type: "mathBlock", raw: indent + token.raw + tail[0]};
+    },
+    renderer(token) { return renderMathToken(token) + "\n"; }
+  },
+  {
+    name: "mathInline", level: "inline",
+    start(source) { return source.search(/\\\(|\\\[|\$/); },
+    tokenizer(source) { const token = mathToken(source); if (token) return {...token, type: "mathInline"}; },
+    renderer: renderMathToken
+  }
+]});
 function md(el, text) {
-  el.innerHTML = window.marked ? marked.parse(text) : `<pre>${esc(text)}</pre>`;
-  if (window.renderMathInElement) renderMathInElement(el, {delimiters: [
-    {left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false},
-    {left: "\\(", right: "\\)", display: false}, {left: "\\[", right: "\\]", display: true}], throwOnError: false});
+  const source = String(text ?? "");
+  el.innerHTML = window.marked ? marked.parse(source) : `<pre>${esc(source)}</pre>`;
 }
 
 /* ---------- 侧栏 ---------- */
@@ -333,15 +494,14 @@ async function loadList() {
   if (uiBusy) return;
   const open = openState(), pids = new Set(PROJECTS.map(p => p.id));
   const row = (j, indent) => {
-    const st = j.status === "running" ? `${STAGE_NAME[j.stage] || "处理"}中 ${Math.round((j.progress || 0) * 100)}%`
-      : j.status === "queued" ? "排队中" : j.status === "error" ? "失败" : fmtDur(j.duration_sec);
+    const st = ["running", "queued"].includes(j.status) ? processingLabel(j) : j.status === "error" ? "失败" : fmtDur(j.duration_sec);
     return `<div class="item ${indent ? "nested" : ""} ${j.id === cur ? "on" : ""}" data-id="${j.id}" onclick="go('${j.id}')">
       <div class="body"><div class="t">${esc(jName(j))}</div>
       <div class="s"><span class="dot ${j.status}"></span>${esc(st)}${(j.inputs || []).length > 1 ? ` · ${j.inputs.length} 段` : ""}</div>
       ${j.status === "running" ? `<div class="mini"><b style="width:${overall(j)}%"></b></div>` : ""}</div>
       <button class="more" title="更多" onclick="event.stopPropagation();jobMenu(this,'${j.id}')">⋯</button></div>`;
   };
-  let html = `<div class="sechead"><span>项目</span><button title="新建项目" onclick="newProj()">＋</button></div>`;
+  let html = `<div id="uploadList"></div><div class="sechead"><span>项目</span><button title="新建项目" onclick="newProj()">＋</button></div>`;
   for (const p of PROJECTS) {
     const js = JOBS.filter(j => j.project === p.id), isOpen = open[p.id] !== false;
     html += `<div class="proj ${isOpen ? "open" : ""}" data-pid="${p.id}" title="${esc(p.folder ? "文件夹：" + p.folder : "未关联文件夹")}" onclick="setOpen('${p.id}',${!isOpen});loadList()">
@@ -353,6 +513,7 @@ async function loadList() {
   const loose = JOBS.filter(j => !pids.has(j.project));
   if (loose.length) html += `<div class="sechead"><span>未归类</span></div>` + loose.map(j => row(j, false)).join("");
   $("#list").innerHTML = html;
+  drawUploads();
 }
 async function newProj(after) {
   const name = prompt("项目名称（例如课程名）：", "");
@@ -363,10 +524,10 @@ async function newProj(after) {
 function projMenu(btn, pid) {
   const p = PROJECTS.find(x => x.id === pid);
   popMenu(btn, [
-    {label: "在此项目中新建任务", fn: () => { newProject = pid; go(null); }},
-    {label: p.folder ? "更换项目文件夹…" : "关联项目文件夹…", fn: () => linkFolder(pid)},
+    {label: "在此项目中新建任务", fn: () => newTask(pid)},
+    ...(!LOCAL() ? [] : [{label: p.folder ? "更换项目文件夹…" : "关联项目文件夹…", fn: () => linkFolder(pid)},
     ...(p.folder ? [{label: "打开项目文件夹", fn: () => J(`/projects/${pid}/reveal`, "POST")},
-                    {label: "取消关联文件夹", fn: () => unlinkFolder(pid)}] : []),
+                    {label: "取消关联文件夹", fn: () => unlinkFolder(pid)}] : [])]),
     {label: "重命名", fn: () => inlineEdit(document.querySelector(`.proj[data-pid="${pid}"] .pn`), p.name, v => J(`/projects/${pid}`, "PATCH", {name: v}))},
     "-",
     {label: "删除项目", danger: true, fn: async () => {
@@ -388,7 +549,19 @@ async function linkFolder(pid) {
   let msg = `已关联：${r.folder}\n\n以后这个项目的录音、课件、转录稿、总结和问答记录都会按类别存放在这个文件夹里。`;
   if (r.moved) msg += `\n已把 ${r.moved} 条已有录音整理进去。`;
   if (r.skipped && r.skipped.length) msg += `\n未能移动：\n${r.skipped.join("\n")}`;
-  alert(msg); loadList(); if (cur) renderJob(true);
+  alert(msg); await loadList(); if (cur) renderJob(true); else if ($("#projFolder")) drawDocs();
+}
+async function newProjWithFolder() {
+  const d = draft;
+  if (isUploading(d) || d.projectPending) return;
+  d.projectPending = true; updateUploadUI(d);
+  let p;
+  try { p = await newProj(); }
+  finally { d.projectPending = false; updateUploadUI(d); }
+  if (!p) return;
+  d.project = p.id; d.projectFiles = [];
+  if (draft === d && !cur && $("#project")) { $("#project").innerHTML = projOptions(d.project); drawDocs(); }
+  await linkFolder(p.id);
 }
 async function unlinkFolder(pid) {
   if (!confirm("取消关联后，已有文件仍留在原文件夹里（程序照样能打开）；之后新建的录音会放回程序的数据目录。继续？")) return;
@@ -408,21 +581,26 @@ async function deleteJob(jid) {
   const j = JOBS.find(x => x.id === jid);
   if (["running", "queued"].includes(j.status)) return alert("任务正在处理，完成后才能删除");
   if (!confirm(`删除「${jName(j)}」？\n录音原文件、转录稿、总结和问答记录都会被删除，无法撤销。`)) return;
-  await J(`/jobs/${jid}`, "DELETE");
+  const r = await J(`/jobs/${jid}`, "DELETE");
+  if (!r.ok) return alert((await r.json()).detail || "删除失败");
   if (cur === jid) go(null); else loadList();
 }
 function jobMenu(btn, jid) {
   popMenu(btn, [
     {label: "重命名", fn: () => renameJob(jid)},
     ...moveItems(jid), "-",
-    {label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")},
-    "-",
+    ...(LOCAL() ? [{label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")}, "-"] : []),
     {label: "删除", danger: true, fn: () => deleteJob(jid)},
   ]);
 }
 const overall = j => { const i = STAGES.findIndex(s => s[0] === j.stage); return Math.round(((i < 0 ? 0 : i) + (j.progress || 0)) / STAGES.length * 100); };
 
+function toggleSide(v) { document.body.classList.toggle("side-open", v); }
 function go(id, t = "summary", c = null) {
+  saveDraft(); viewVersion++;
+  closeMenus(); uiBusy = !!$("#modal");
+  toggleSide(false);
+  $("#main").scrollTop = 0;
   if (id !== cur) conv = null;
   cur = id; tab = t; lastSig = ""; if (c !== null) conv = c;
   setHash(); loadList(); render();
@@ -435,15 +613,19 @@ function setTab(t) { go(cur, t); }
 
 /* ---------- 新建 ---------- */
 function renderNew() {
+  const d = draft;
   $("#main").innerHTML = `<div class="wrap">
     <h1>新建任务</h1><div class="sub">本地 Qwen3-ASR 转录，大模型总结与问答</div>
+    <div class="upload-overview" id="uploadOverview"></div>
+    <fieldset class="upload-fields" id="uploadFields" data-draft="${d.id}">
     <div class="drop" id="drop"><div class="big">拖入录音，或点击选择</div>
       <div class="sub">支持 m4a / mp3 / wav / mp4 等，可一次选多段</div></div>
     <input type="file" id="fileIn" multiple accept="audio/*,video/*" hidden>
     <div class="files" id="files"></div>
     <label class="switch" id="mergeRow" style="display:none"><input type="checkbox" id="merge" checked>
       <span>合并为一节课 <span class="sub">— 按文件名顺序拼接，只出一份总结</span></span></label>
-    <div class="field"><label>所属项目</label><select class="in" id="project">${projOptions(newProject)}</select></div>
+    <div class="field"><label>所属项目</label><select class="in" id="project">${projOptions(d.project)}</select>
+      <div class="folderline" id="projFolder"></div></div>
     <div class="field"><label>课件 / 讲义（可选：PPT、Word、PDF、图片，模型会结合课件总结）</label>
       <div class="actions"><button class="ghost" onclick="$('#docIn').click()">＋ 选择文件</button>
         <button class="ghost" id="pickProj" style="display:none" onclick="pickForNew()">从项目文件夹选择</button></div>
@@ -452,7 +634,8 @@ function renderNew() {
     <div class="field"><label>课程名 / 关键术语（可选，能提高识别准确率）</label>
       <input class="in" id="context" placeholder="例如：示例课程，梯度下降，交叉熵"></div>
     <div class="grid">
-      <div class="field"><label>总结模型</label><select class="in" id="model">${modelOptions(INFO.summary_model)}</select></div>
+      <div class="field"><label>总结模型</label><select class="in" id="model">${modelOptions(INFO.summary_model)}</select>
+        <div class="sub" id="summaryChain" style="font-size:12px;margin-top:6px;overflow-wrap:anywhere"></div></div>
       <div class="field"><label>总结模板</label><select class="in" id="prompt">${promptOptions("lecture")}</select></div>
     </div>
     <details><summary>高级选项</summary>
@@ -465,85 +648,205 @@ function renderNew() {
       </div>
       <div class="field"><label>总结的补充要求</label><textarea class="in" id="extra" rows="2" placeholder="例如：多列出例题和公式推导"></textarea></div>
     </details>
+    </fieldset>
     <div class="actions" style="margin-top:24px"><button class="btn" id="go" disabled onclick="submit()">开始处理</button>
+      <button class="ghost" id="nextTask" hidden onclick="newTask()">另建任务</button>
       <span class="sub" id="upmsg"></span></div>
   </div>`;
   const drop = $("#drop"), fi = $("#fileIn");
   $("#project").onchange = async e => {
+    if (isUploading(d)) return;
+    const select = e.target, previousProject = d.project;
     if (e.target.value === "__new") {
-      const p = await newProj();
-      newProject = p ? p.id : "";
-      e.target.innerHTML = projOptions(newProject);
-    } else newProject = e.target.value;
-    projDocs = []; drawDocs();
+      d.projectPending = true; updateUploadUI(d);
+      try {
+        const p = await newProj();
+        if (draft !== d || !select.isConnected || isUploading(d)) return;
+        d.project = p ? p.id : previousProject;
+      } catch (e) {
+        d.message = "创建项目失败：" + e.message;
+      } finally {
+        d.projectPending = false; updateUploadUI(d);
+      }
+      select.innerHTML = projOptions(d.project);
+    } else d.project = e.target.value;
+    d.projectFiles = []; drawDocs();
   };
-  $("#docIn").onchange = e => { for (const f of e.target.files) if (!pickedDocs.some(x => x.name === f.name && x.size === f.size)) pickedDocs.push(f); e.target.value = ""; drawDocs(); };
+  $("#docIn").onchange = e => {
+    if (draft !== d || isUploading(d)) return;
+    for (const f of e.target.files) if (!d.docs.some(x => x.name === f.name && x.size === f.size)) d.docs.push(f);
+    e.target.value = ""; drawDocs();
+  };
+  for (const id of DRAFT_FIELDS) {
+    const el = $("#" + id);
+    if (d.fields[id] !== undefined) el.value = d.fields[id];
+    el.oninput = () => { if (!isUploading(d)) d.fields[id] = el.value; if (id === "model") updateSummaryChain(); };
+  }
+  $("#merge").checked = d.merge;
+  updateSummaryChain();
+  $("#merge").onchange = e => { if (!isUploading(d)) d.merge = e.target.checked; };
   drawDocs();
-  if (newProject && !$("#context").value) $("#context").value = (PROJECTS.find(p => p.id === newProject) || {}).name || "";
-  drop.onclick = () => fi.click();
-  fi.onchange = () => { addFiles(fi.files); fi.value = ""; };
+  if (d.project && !$("#context").value) $("#context").value = (PROJECTS.find(p => p.id === d.project) || {}).name || "";
+  drop.onclick = () => { if (!isUploading(d)) fi.click(); };
+  fi.onchange = () => { if (draft === d) addFiles(fi.files); fi.value = ""; };
   drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
   drop.ondragleave = () => drop.classList.remove("over");
-  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (draft === d) addFiles(e.dataTransfer.files); };
   drawFiles();
 }
-let pickedDocs = [], projDocs = [];
 function drawDocs() {
-  const pr = PROJECTS.find(p => p.id === newProject);
+  if (!$("#docs")) return;
+  const pr = PROJECTS.find(p => p.id === draft.project);
   if ($("#pickProj")) $("#pickProj").style.display = pr && pr.folder ? "" : "none";
-  $("#docs").innerHTML = pickedDocs.map((f, i) => `<div class="file"><span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
-      <button class="x" onclick="pickedDocs.splice(${i},1);drawDocs()">×</button></div>`).join("")
-    + projDocs.map((f, i) => `<div class="file"><span class="n">${esc(f)}</span><span class="z">项目文件夹</span>
-      <button class="x" onclick="projDocs.splice(${i},1);drawDocs()">×</button></div>`).join("");
+  const fl = $("#projFolder");
+  if (fl && !LOCAL()) fl.innerHTML = `<span>保存位置：${pr && pr.folder ? esc(pr.folder) : "程序数据目录"}（关联文件夹需在电脑上操作）</span>`;
+  else if (fl) fl.innerHTML = !pr
+    ? `<span>保存位置：程序数据目录（data\\jobs）</span><span class="spacer"></span>
+       <button class="ghost sm" onclick="newProjWithFolder()">新建项目并选择文件夹…</button>`
+    : pr.folder
+    ? `<span>保存位置：<a href="#" onclick="J('/projects/${pr.id}/reveal','POST');return false" title="打开文件夹">${esc(pr.folder)}</a></span>
+       <span class="spacer"></span><button class="ghost sm" onclick="linkFolder('${pr.id}')">更换文件夹…</button>`
+    : `<span>保存位置：程序数据目录（这个项目还没关联文件夹）</span><span class="spacer"></span>
+       <button class="btn sm" onclick="linkFolder('${pr.id}')">选择项目文件夹…</button>`;
+  $("#docs").innerHTML = draft.docs.map((f, i) => `<div class="file"><span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
+      <button class="x" onclick="removeDraftFile('docs',${i})">×</button></div>`).join("")
+    + draft.projectFiles.map((f, i) => `<div class="file"><span class="n">${esc(f)}</span><span class="z">项目文件夹</span>
+      <button class="x" onclick="removeDraftFile('projectFiles',${i})">×</button></div>`).join("");
 }
-function pickForNew() { pickProjectFiles(newProject, sel => { projDocs = [...new Set([...projDocs, ...sel])]; drawDocs(); }); }
+function pickForNew() {
+  const d = draft, pid = d.project;
+  if (isUploading(d)) return;
+  pickProjectFiles(pid, sel => {
+    if (draft !== d || d.project !== pid || isUploading(d)) return;
+    d.projectFiles = [...new Set([...d.projectFiles, ...sel])]; drawDocs();
+  });
+}
 function projOptions(sel) {
   return `<option value="">未归类</option>` + PROJECTS.map(p => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("")
     + `<option value="__new">＋ 新建项目…</option>`;
 }
 function addFiles(fl) {
-  for (const f of fl) if (!picked.some(p => p.name === f.name && p.size === f.size)) picked.push(f);
-  picked.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", {numeric: true}));
+  if (isUploading(draft)) return;
+  for (const f of fl) if (!draft.files.some(p => p.name === f.name && p.size === f.size)) draft.files.push(f);
+  draft.files.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", {numeric: true}));
   drawFiles();
 }
-function drawFiles() {
-  $("#files").innerHTML = picked.map((f, i) => `<div class="file"><span class="sub">${i + 1}</span>
-    <span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
-    <button class="x" onclick="picked.splice(${i},1);drawFiles()" title="移除">×</button></div>`).join("");
-  $("#mergeRow").style.display = picked.length > 1 ? "flex" : "none";
-  $("#go").disabled = !picked.length;
+function removeDraftFile(kind, i) {
+  if (isUploading(draft)) return;
+  draft[kind].splice(i, 1);
+  if (kind === "files") drawFiles(); else drawDocs();
 }
-async function submit() {
-  const fd = new FormData();
-  picked.forEach(f => fd.append("file", f));
-  pickedDocs.forEach(f => fd.append("attachments", f));
-  if (projDocs.length) fd.append("project_files", JSON.stringify(projDocs));
-  fd.append("merge", picked.length > 1 && $("#merge").checked ? "true" : "false");
-  for (const [k, id] of [["context","context"],["language","language"],["prompt","prompt"],["model","model"],["diarize","diarize"],["num_speakers","spk"],["extra","extra"],["project","project"]]) {
-    const v = $("#" + id).value.trim(); if (v) fd.append(k, v);
-  }
-  const btn = $("#go"); btn.disabled = true;
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/jobs");
-  xhr.upload.onprogress = e => { $("#upmsg").textContent = `上传中 ${Math.round(e.loaded / e.total * 100)}%`; };
-  xhr.onload = () => {
-    if (xhr.status !== 200) { $("#upmsg").textContent = "上传失败：" + xhr.responseText; btn.disabled = false; return; }
-    picked = []; pickedDocs = []; projDocs = []; if (newProject) setOpen(newProject, true); go(JSON.parse(xhr.responseText).id);
+function drawFiles() {
+  if (!$("#files")) return;
+  $("#files").innerHTML = draft.files.map((f, i) => `<div class="file"><span class="sub">${i + 1}</span>
+    <span class="n">${esc(f.name)}</span><span class="z">${fmtSize(f.size)}</span>
+    <button class="x" onclick="removeDraftFile('files',${i})" title="移除">×</button></div>`).join("");
+  $("#mergeRow").style.display = draft.files.length > 1 ? "flex" : "none";
+  updateUploadUI();
+}
+/* 分片上传：4MB 一块、3 块并行，每块失败自动重试；网络不稳（手机经中转）也能传完 */
+const CHUNK = 4 << 20, PARALLEL = 3;
+window.addEventListener("beforeunload", e => { if ([...UPLOADS.values()].some(isUploading)) { e.preventDefault(); e.returnValue = ""; } });
+function sendChunk(url, blob, onprog) {
+  return new Promise((ok, bad) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", url);
+    x.timeout = 180000;
+    x.upload.onprogress = e => onprog(e.loaded);
+    x.onload = () => x.status === 200 ? ok() : bad(new Error(x.status + " " + x.responseText.slice(0, 100)));
+    x.onerror = () => bad(new Error("网络中断"));
+    x.ontimeout = () => bad(new Error("超时"));
+    x.send(blob);
+  });
+}
+async function chunkUpload(files, show) {
+  const specs = files.map(f => ({f, name: f.name, size: f.size, count: Math.max(1, Math.ceil(f.size / CHUNK)),
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 10)}));
+  const tasks = specs.flatMap(s => Array.from({length: s.count}, (_, i) => ({s, i})));
+  const total = files.reduce((a, f) => a + f.size, 0) || 1, live = new Map(), t0 = Date.now();
+  let done = 0, retries = 0, failed = null;
+  const tick = () => {
+    const sent = done + [...live.values()].reduce((a, b) => a + b, 0), sec = (Date.now() - t0) / 1000;
+    const speed = sent / Math.max(sec, 0.5), left = speed > 0 ? (total - sent) / speed : 0;
+    show(`上传中 ${Math.min(99, Math.floor(sent / total * 100))}%　${fmtSize(sent)} / ${fmtSize(total)}　`
+      + `${fmtSize(speed)}/s　约剩 ${left > 90 ? Math.ceil(left / 60) + " 分钟" : Math.ceil(left) + " 秒"}`
+      + (retries ? `　（网络波动，已自动重试 ${retries} 次）` : ""));
   };
-  xhr.onerror = () => { $("#upmsg").textContent = "上传失败"; btn.disabled = false; };
-  xhr.send(fd);
+  const worker = async () => {
+    while (tasks.length && !failed) {
+      const t = tasks.shift(), blob = t.s.f.slice(t.i * CHUNK, (t.i + 1) * CHUNK);
+      for (let k = 0; ; k++) {
+        try {
+          await sendChunk(`/uploads/${t.s.id}/${t.i}`, blob, n => { live.set(t, n); tick(); });
+          live.delete(t); done += blob.size; tick(); break;
+        } catch (e) {
+          live.delete(t);
+          if (k >= 12) { failed = e; return; }
+          retries++; tick();
+          await new Promise(r => setTimeout(r, Math.min(30, 2 ** k) * 1000));
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({length: PARALLEL}, worker));
+  if (failed) throw failed;
+  return specs.map(({id, count, size, name}) => ({id, count, size, name}));
+}
+
+async function submit() {
+  const d = draft;
+  if (cur || isUploading(d) || d.projectPending || !d.files.length || $("#uploadFields")?.dataset.draft !== d.id) return;
+  saveDraft();
+  // 在第一次 await 前固定本次上传的数据，后台完成时不再读取当前页面或其他任务。
+  const snapshot = {files: [...d.files], docs: [...d.docs], projectFiles: [...d.projectFiles],
+    project: d.project, merge: d.files.length > 1 && d.merge, fields: {...d.fields}};
+  d.projectName = PROJECTS.find(p => p.id === snapshot.project)?.name || "未归类";
+  d.status = "uploading"; d.message = "正在准备上传…";
+  UPLOADS.set(d.id, d); updateUploadUI(d);
+  const show = s => { d.message = s; updateUploadUI(d); };
+  try {
+    const ups = await chunkUpload(snapshot.files, show);
+    const atts = snapshot.docs.length ? await chunkUpload(snapshot.docs, s => show("课件" + s)) : [];
+    d.status = "creating"; show("上传完成，正在创建任务…");
+    const fd = new FormData();
+    fd.append("uploads", JSON.stringify(ups));
+    if (atts.length) fd.append("attach_uploads", JSON.stringify(atts));
+    if (snapshot.projectFiles.length) fd.append("project_files", JSON.stringify(snapshot.projectFiles));
+    fd.append("merge", String(snapshot.merge));
+    if (snapshot.project) fd.append("project", snapshot.project);
+    for (const [k, id] of [["context","context"],["language","language"],["prompt","prompt"],["model","model"],["diarize","diarize"],["num_speakers","spk"],["extra","extra"]]) {
+      const v = (snapshot.fields[id] || "").trim(); if (v) fd.append(k, v);
+    }
+    const r = await fetch("/jobs", {method: "POST", body: fd});
+    const txt = await r.text();
+    if (!r.ok) throw new Error(txt);
+    const result = JSON.parse(txt);
+    d.status = "done"; UPLOADS.delete(d.id);
+    d.files = []; d.docs = []; d.projectFiles = [];
+    if (snapshot.project) setOpen(snapshot.project, true);
+    if (draft === d) {
+      draft = makeDraft(snapshot.project);
+      if (!cur) go(result.id);
+    }
+    drawUploads(); loadList();
+  } catch (e) {
+    const stage = d.status === "creating" ? "创建任务失败：" : "上传失败：";
+    d.status = "error"; show(stage + e.message + "。可点击重试");
+  }
 }
 
 /* ---------- 任务详情 ---------- */
 async function renderJob(force) {
-  const j = await fetch(`/jobs/${cur}`).then(r => r.ok ? r.json() : null);
+  const jobId = cur, version = viewVersion;
+  const j = await fetch(`/jobs/${jobId}`).then(r => r.ok ? r.json() : null);
+  if (cur !== jobId || viewVersion !== version) return;
   if (!j) { cur = null; return render(); }
-  const sig = [j.status, j.stage, j.files.join(), tab].join("|");
+  const sig = [j.status, j.stage, j.files.join(), tab, j.queue_position, j.summary_phase, j.summary_active_model, j.summary_notice].join("|");
   const running = j.status === "running" || j.status === "queued";
   if (!force && sig === lastSig) { if (running) updateSteps(j); return; }
   lastSig = sig;
 
-  const meta = [fmtDur(j.duration_sec), (j.inputs || []).length > 1 ? `${j.inputs.length} 段合并` : "",
+  const meta = [running ? processingLabel(j) : "", fmtDur(j.duration_sec), (j.inputs || []).length > 1 ? `${j.inputs.length} 段合并` : "",
     j.status === "done" && j.elapsed_sec ? `处理用时 ${Math.round(j.elapsed_sec)} 秒` : "",
     new Date(j.created_at * 1000).toLocaleString("zh-CN", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})].filter(Boolean).join(" · ");
   const dl = j.files.filter(f => /\.(md|srt|txt|json)$/.test(f) && !/^(asr|segments|diar)/.test(f))
@@ -556,11 +859,12 @@ async function renderJob(force) {
     <div class="head"><div style="min-width:0">
       <div class="crumb">${proj ? `<a href="#" onclick="setOpen('${proj.id}',true);loadList();return false">${esc(proj.name)}</a>` : "未归类"}</div>
       <h1 id="jobTitle" title="双击重命名" ondblclick="renameJob('${j.id}')">${esc(jName(j))}</h1><div class="sub">${esc(meta)}</div>
-      ${j.dir ? `<div class="where" title="点击打开文件夹"><a href="#" style="color:inherit" onclick="J('/jobs/${j.id}/reveal','POST');return false">${esc(j.dir)}</a></div>` : ""}</div>
+      ${j.dir && LOCAL() ? `<div class="where" title="点击打开文件夹"><a href="#" style="color:inherit" onclick="J('/jobs/${j.id}/reveal','POST');return false">${esc(j.dir)}</a></div>` : ""}</div>
       ${!running ? `<div class="actions">
         <div class="menu" id="m1"><button class="ghost" onclick="toggleMenu('m1')">下载 ▾</button><div class="pop">${dl || '<span class="sub" style="padding:6px 10px;display:block">暂无文件</span>'}</div></div>
         <button class="ghost" onclick="event.stopPropagation();detailMenu(this,'${j.id}')">更多 ▾</button></div>` : ""}
     </div>
+    ${j.summary_notice ? `<div class="sub" style="margin-top:12px;overflow-wrap:anywhere">${esc(j.summary_notice)}</div>` : ""}
     ${running ? `<div class="steps" id="steps">${STAGES.map(s => `<div class="step" data-s="${s[0]}"><div class="bar"><b></b></div>${s[1]}</div>`).join("")}</div>` : ""}
     ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
     ${hasT ? `<div class="tabs">
@@ -582,6 +886,7 @@ async function renderMaterials(j) {
   const pane = $("#pane"); pane.className = "";
   const [mats, sv] = await Promise.all([J(`/jobs/${j.id}/materials`).then(r => r.json()),
                                         J(`/jobs/${j.id}/summaries`).then(r => r.json()).catch(() => ({items: []}))]);
+  if (!pane.isConnected || cur !== j.id || tab !== "materials") return;
   const pr = PROJECTS.find(p => p.id === j.project);
   const active = (sv.items || []).find(x => x.id === sv.active);
   const newest = Math.max(0, ...mats.filter(m => m.status === "ready").map(m => m.added_at));
@@ -599,7 +904,9 @@ async function renderMaterials(j) {
       <div class="info"><div class="nm" title="${esc(m.name)}">${esc(m.name)}</div>
         <div class="sub">${m.status === "ready" ? `${m.page_count} 页 · ${fmtSize(m.size)}` : m.status === "error" ? esc(m.error || "") : "正在提取文字和页面…"}</div></div>
       <button class="x" title="删除" onclick="delMat('${m.id}','${esc(m.name)}')">×</button></div>`).join("")}</div>
-    ${mats.length ? "" : `<div class="empty">还没有课件。上传本节课的 PPT / 讲义，模型就能结合课件整理笔记、回答问题</div>`}`;
+    ${mats.length ? "" : `<div class="empty">还没有课件。上传本节课的 PPT / 讲义，模型就能结合课件整理笔记、回答问题</div>`}
+    ${j.project ? `<div class="libbox" id="libbox"></div>` : ""}`;
+  if (j.project) drawLibrary(j.project);
   $("#matIn").onchange = async e => {
     const fd = new FormData(); for (const f of e.target.files) fd.append("file", f);
     const r = await fetch(`/jobs/${j.id}/materials`, {method: "POST", body: fd});
@@ -608,6 +915,24 @@ async function renderMaterials(j) {
   };
   if (mats.some(m => m.status === "processing")) matTimer = setTimeout(() => { if (tab === "materials" && cur === j.id) renderMaterials(j); }, 2000);
   if ($("#matCount")) $("#matCount").textContent = mats.length || "";
+}
+let libTimer = null;
+async function drawLibrary(pid) {
+  clearTimeout(libTimer);
+  const el = $("#libbox"); if (!el) return;
+  const st = await J(`/projects/${pid}/library`).then(r => r.json()).catch(() => null);
+  if (!st || !$("#libbox")) return;
+  if (!st.enabled) { el.innerHTML = ""; return; }
+  const pr = PROJECTS.find(p => p.id === pid) || {};
+  const what = [st.files ? `${st.files} 个资料文件` : "", st.recordings ? `${st.recordings} 节录音的转录稿和笔记` : ""].filter(Boolean).join("、");
+  el.innerHTML = `<div class="libhead"><b>项目资料库</b><span class="sub">「${esc(pr.name || "")}」</span><span class="spacer"></span>
+      <button class="ghost sm" ${st.running ? "disabled" : ""} onclick="J('/projects/${pid}/library/rebuild','POST').then(()=>drawLibrary('${pid}'))">${st.running ? "更新中…" : "重新扫描"}</button></div>
+    <div class="sub">${st.running ? `正在整理：${esc(st.progress || "检查文件…")}` :
+      what ? `已收录 ${what}。问答和生成总结时，会自动检索其中与问题相关的片段给模型参考，并注明出处。`
+           : pr.folder ? "项目文件夹里还没有可收录的资料（支持 PDF、PPT、Word、txt、md）。" : "关联项目文件夹后，文件夹里的既往课程资料也会被收录。同项目其他录音的转录稿和笔记会自动收录。"}
+      ${!pr.folder && LOCAL() ? ` <a href="#" onclick="linkFolder('${pid}');return false">关联项目文件夹</a>` : ""}</div>
+    ${st.errors && st.errors.length ? `<details><summary>${st.errors.length} 个文件未能读取</summary>${st.errors.map(e => `<div class="sub">${esc(e.name)}：${esc(e.error)}</div>`).join("")}</details>` : ""}`;
+  if (st.running) libTimer = setTimeout(() => { if (tab === "materials") drawLibrary(pid); }, 2000);
 }
 const j_model = () => (JOBS.find(x => x.id === cur) || {}).summary_model || INFO.summary_model;
 function addFromProject() {
@@ -631,6 +956,8 @@ function updateSteps(j) {
 }
 async function loadPane(j) {
   const pane = $("#pane");
+  const requestedTab = tab, version = viewVersion;
+  const current = () => pane.isConnected && cur === j.id && tab === requestedTab && viewVersion === version;
   if (tab === "chat") return renderChat(j);
   if (tab === "materials") return renderMaterials(j);
   const f = tab === "summary" ? "summary.md" : "transcript.md";
@@ -639,6 +966,7 @@ async function loadPane(j) {
   if (tab === "summary") {
     const busy = j.status === "running" || j.status === "queued";
     const sv = await fetch(`/jobs/${j.id}/summaries`).then(r => r.json()).catch(() => ({items: []}));
+    if (!current()) return;
     SV = sv;
     const vlabel = it => `${it.title} · ${mLabel(it.model)} · ${pName(it.prompt)}`;
     const vsel = sv.items.length ? `<div class="ver"><select class="in sm" id="verSel" title="切换总结版本" onchange="activateVer(this.value)">
@@ -653,9 +981,10 @@ async function loadPane(j) {
     pane.innerHTML = bar + `<div class="empty">${j.status === "running" ? "总结生成中…" : "还没有总结"}</div>`; return;
   }
   let text = await fetch(`/jobs/${j.id}/files/${f}`).then(r => r.text());
+  if (!current()) return;
   text = text.replace(/^# [^\n]*\n[\r\n]*/, "");  // 标题已在页头显示（兼容 \r\n）
   pane.innerHTML = bar + `<div class="md ${tab === "transcript" ? "transcript" : ""}" id="mdbody"></div>`;
-  md($("#mdbody"), text);
+  md(pane.querySelector("#mdbody"), text);
 }
 function toggleMenu(id) {
   const m = document.getElementById(id), open = m.classList.contains("open");
@@ -685,7 +1014,7 @@ function detailMenu(btn, jid) {
   popMenu(btn, [
     {label: "重命名", fn: () => renameJob(jid)},
     ...moveItems(jid), "-",
-    {label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")},
+    ...(LOCAL() ? [{label: "打开所在文件夹", fn: () => J(`/jobs/${jid}/reveal`, "POST")}] : []),
     {label: "重新转录", fn: () => rerun("asr")},
     {label: "开启说话人区分并重跑", fn: () => rerun("diarize", {diarize: true})},
     "-",
@@ -700,29 +1029,35 @@ const api = (path, opt = {}) => fetch(`/jobs/${cur}/chats${path}`, {headers: {"C
 async function renderChat(j) {
   const pane = $("#pane"); pane.className = "chatlayout";
   pane.innerHTML = `<div class="convs"><button class="newchat" onclick="newChat()">＋ 新对话</button><div id="convlist"></div></div>
-    <div class="chat"><div class="chat-title" id="chatTitle"></div><div class="msgs" id="msgs"></div>
+    <div class="chat"><button class="convtoggle" onclick="$('#pane').classList.toggle('showconvs')">☰ 对话列表</button>
+      <div class="chat-title" id="chatTitle"></div><div class="msgs" id="msgs"></div>
       <div class="composer"><div class="quick" id="quick">${(INFO.quick_prompts || []).map((q, i) =>
           `<button class="qbtn" title="${esc(q.text)}" onclick="ask(INFO.quick_prompts[${i}].text)">${esc(q.label)}</button>`).join("")}</div>
         <div class="box"><textarea id="q" rows="1" placeholder="就这段录音提问…"></textarea>
         <select class="msel" id="chatModel" title="问答模型">${modelOptions(chatModel())}</select>
         <button class="send" id="send" onclick="ask()">↑</button></div>
-        <div class="hint">Enter 发送 · Shift+Enter 换行</div></div></div>`;
+        <div class="hint">Enter 发送 · Shift+Enter 换行${j.project ? " · 会参考项目资料库中的相关内容" : ""}</div></div></div>`;
   $("#chatModel").onchange = e => { try { localStorage.setItem("chatModel", e.target.value); } catch {} };
   const q = $("#q");
   q.oninput = () => { q.style.height = "auto"; q.style.height = q.scrollHeight + "px"; };
   q.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(); } };
   await refreshConvs();
+  if (!pane.isConnected || cur !== j.id || tab !== "chat") return;
   if (conv && !convs.some(c => c.id === conv)) conv = null;
   await loadConv();
 }
 
 async function refreshConvs() {
-  convs = await api("").then(r => r.json()).catch(() => convs);
+  const jobId = cur, version = viewVersion;
+  const items = await api("").then(r => r.json()).catch(() => convs);
+  if (cur !== jobId || tab !== "chat" || viewVersion !== version) return;
+  convs = items;
   drawConvs();
 }
 
 function drawConvs() {
   const el = $("#convlist"); if (!el) return;
+  if (el.querySelector(".conv input")) return;
   const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()) / 1000;
   const grp = t => t >= today ? "今天" : t >= today - 86400 ? "昨天" : t >= today - 7 * 86400 ? "过去 7 天" : "更早";
   let html = "", last = "";
@@ -732,7 +1067,7 @@ function drawConvs() {
     html += `<div class="conv ${c.id === conv ? "on" : ""}" data-id="${c.id}" onclick="openConv('${c.id}')">
       ${STREAMS[skey(c.id)] ? `<span class="dot running" title="正在生成"></span>` : ""}
       <span class="ct" title="${esc(c.title)}">${esc(c.title)}</span>
-      <button class="more" title="更多" onclick="event.stopPropagation();convMenu('${c.id}')">⋯</button></div>`;
+      <button class="more" title="更多" aria-haspopup="menu" aria-expanded="false" onclick="event.stopPropagation();convMenu('${c.id}',this)">⋯</button></div>`;
   }
   el.innerHTML = html || `<div class="sub" style="padding:8px 12px">还没有对话</div>`;
   const cur_ = convs.find(c => c.id === conv);
@@ -740,13 +1075,16 @@ function drawConvs() {
 }
 
 async function loadConv() {
-  const msgs = $("#msgs"); msgs.innerHTML = "";
+  const msgs = $("#msgs"), jobId = cur, version = viewVersion;
+  if (!msgs) return;
+  msgs.innerHTML = "";
   drawConvs();
   if (!conv) {
     msgs.innerHTML = `<div class="empty" style="padding:48px 0 0">针对这段录音提问，回答会引用转录稿的时间戳</div>
       `;
   } else {
     const c = await api(`/${conv}`).then(r => r.ok ? r.json() : null);
+    if (!msgs.isConnected || cur !== jobId || tab !== "chat" || viewVersion !== version) return;
     if (!c) { conv = null; setHash(); return loadConv(); }
     if (c.id !== conv) return;  // 加载期间已切到别的对话
     c.messages.forEach(m => addMsg(m.role, m.content));
@@ -754,7 +1092,7 @@ async function loadConv() {
     if (st) {  // 这个对话还在生成：接上直播
       addMsg("user", st.q);
       const el = addMsg("assistant", ""); st.box = el.firstChild; st.box.classList.add("typing");
-      st.box.innerHTML = window.marked ? marked.parse(st.acc) : esc(st.acc);
+      md(st.box, st.acc);
     }
     document.querySelector("main").scrollTop = 1e9;
   }
@@ -770,27 +1108,30 @@ function updateComposer() {
   document.querySelectorAll(".qbtn").forEach(b => b.disabled = busy);
 }
 function openConv(id) {
+  $("#pane").classList.remove("showconvs");
   if (id === conv) return;
   closeConvMenu(); conv = id; setHash(); loadConv();
 }
-function newChat() { conv = null; setHash(); loadConv(); }
+function newChat() { $("#pane").classList.remove("showconvs"); conv = null; setHash(); loadConv(); }
 
 function closeConvMenu() {
-  document.querySelectorAll(".cpop").forEach(x => x.remove());
-  document.querySelectorAll(".conv.menuopen").forEach(x => x.classList.remove("menuopen"));
+  closeMenus();
 }
-function convMenu(id) {
-  const row = document.querySelector(`.conv[data-id="${id}"]`), open = row.classList.contains("menuopen");
+function convMenu(id, anchor) {
+  const row = document.querySelector(`.conv[data-id="${id}"]`);
+  if (!row) return;
+  const open = row.classList.contains("menuopen");
   closeConvMenu(); if (open) return;
-  row.classList.add("menuopen");
-  const pop = document.createElement("div"); pop.className = "cpop";
-  pop.innerHTML = `<button onclick="event.stopPropagation();renameConv('${id}')">重命名</button>
-    <button onclick="event.stopPropagation();deleteConv('${id}')" style="color:var(--err)">删除</button>`;
-  row.appendChild(pop);
+  popMenu(anchor || row.querySelector(".more"), [
+    {label: "重命名", fn: () => renameConv(id)},
+    {label: "删除", danger: true, fn: () => deleteConv(id)}
+  ]);
 }
 function renameConv(id) {
   closeConvMenu();
-  const row = document.querySelector(`.conv[data-id="${id}"]`), c = convs.find(x => x.id === id);
+  const row = document.querySelector(`.conv[data-id="${id}"]`), c = convs.find(x => x.id === id), jobAtStart = cur;
+  if (!row || !c) return;
+  uiBusy = true;
   row.innerHTML = `<input value="${esc(c.title)}" maxlength="60">`;
   const inp = row.querySelector("input"); inp.focus(); inp.select();
   inp.onclick = e => e.stopPropagation();
@@ -798,24 +1139,33 @@ function renameConv(id) {
   const save = async ok => {
     if (done) return; done = true;
     const t = inp.value.trim();
-    if (ok && t && t !== c.title) await api(`/${id}`, {method: "PATCH", body: JSON.stringify({title: t})});
-    refreshConvs();
+    row.textContent = ok && t ? t : c.title;
+    uiBusy = !!document.querySelector(".item input, .proj input, .conv input, #modal");
+    if (ok && t && t !== c.title) {
+      const r = await J(`/jobs/${jobAtStart}/chats/${id}`, "PATCH", {title: t});
+      if (!r.ok) alert((await r.json()).detail || "重命名失败");
+    }
+    if (cur === jobAtStart && tab === "chat") refreshConvs();
   };
   inp.onkeydown = e => { if (e.key === "Enter" && !e.isComposing) save(true); if (e.key === "Escape") save(false); };
   inp.onblur = () => save(true);
 }
 async function deleteConv(id) {
   closeConvMenu();
-  const c = convs.find(x => x.id === id);
+  const c = convs.find(x => x.id === id), jobAtStart = cur;
   if (!confirm(`删除对话「${c ? c.title : ""}」？此操作无法撤销。`)) return;
-  await api(`/${id}`, {method: "DELETE"});
+  const r = await J(`/jobs/${jobAtStart}/chats/${id}`, "DELETE");
+  if (!r.ok) return alert((await r.json()).detail || "删除失败");
+  if (cur !== jobAtStart || tab !== "chat") return;
   if (id === conv) { conv = null; setHash(); await loadConv(); }
   refreshConvs();
 }
 
 function chatModel() {
   let m = null; try { m = localStorage.getItem("chatModel"); } catch {}
-  return INFO.models.some(x => x.id === m) ? m : INFO.chat_model;
+  if (INFO.models.some(x => x.id === m && x.available !== false)) return m;
+  const preferred = [INFO.chat_model, ...(INFO.summary_models || []), ...INFO.models.map(x => x.id)];
+  return preferred.find(id => INFO.models.some(x => x.id === id && x.available !== false)) || INFO.chat_model;
 }
 function addMsg(role, text) {
   const el = document.createElement("div");
@@ -848,7 +1198,7 @@ async function ask(text) {
       const {value, done} = await reader.read(); if (done) break;
       st.acc += dec.decode(value, {stream: true});
       if (st.box.isConnected && Date.now() - t > 80) {
-        st.box.innerHTML = window.marked ? marked.parse(st.acc) : esc(st.acc); t = Date.now();
+        md(st.box, st.acc); t = Date.now();
         if (main.scrollHeight - main.scrollTop - main.clientHeight < 200) main.scrollTop = 1e9;
       }
     }
@@ -871,7 +1221,6 @@ fetch("/info").then(r => r.json()).then(i => {
 });
 loadList();
 setInterval(() => { if (uiBusy) return; loadList(); if (cur && tab !== "chat" && tab !== "materials") renderJob(false); }, 2500);
-document.addEventListener("click", e => { if (!e.target.closest(".conv")) closeConvMenu(); });
 </script>
 </body>
 </html>

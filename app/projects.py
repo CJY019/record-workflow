@@ -78,6 +78,9 @@ DOC_EXT = {".pdf", ".ppt", ".pptx", ".pps", ".ppsx", ".doc", ".docx", ".odp", ".
            ".xls", ".xlsx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp"}
 
 
+SKIP_DIRS = {"_work", "__pycache__", "node_modules", "$RECYCLE.BIN"}  # 工具生成的工作目录，不算课程资料
+
+
 def list_files(pid: str, max_files: int = 500) -> list[dict]:
     """列出项目文件夹里的课件类文件（最多 4 层，跳过导出目录与隐藏目录）"""
     p = get(pid)
@@ -93,7 +96,7 @@ def list_files(pid: str, max_files: int = 500) -> list[dict]:
         rel = f.relative_to(root)
         if f.is_dir() and is_job_dir(f):
             job_dirs.add(rel.parts)  # 录音笔记自己的文件夹不算课件
-        if (len(rel.parts) > 4 or any(x.startswith((".", "~$")) for x in rel.parts)
+        if (len(rel.parts) > 4 or any(x.startswith((".", "~$")) or x in SKIP_DIRS for x in rel.parts)
                 or any(rel.parts[:len(jd)] == jd for jd in job_dirs)
                 or not f.is_file() or f.suffix.lower() not in DOC_EXT):
             continue

@@ -1,21 +1,42 @@
 """串联 ①~⑤，每步结果落盘到任务文件夹（见 LAYOUT），可从任意阶段重跑"""
 import json
+import threading
 import time
 import traceback
+import uuid
 from pathlib import Path
 
 from . import formats
 from .config import CFG
 
 STAGES = ["preprocess", "vad", "asr", "diarize", "summarize"]
+_locks = {}
+_locks_guard = threading.Lock()
+
+
+def _file_lock(p: Path):
+    with _locks_guard:
+        return _locks.setdefault(str(p.resolve()).casefold(), threading.RLock())
 
 
 def _rj(p: Path):
-    return json.loads(p.read_text(encoding="utf-8"))
+    with _file_lock(p):
+        return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _write_text(p: Path, text: str):
+    with _file_lock(p):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            tmp.write_text(text, encoding="utf-8")
+            tmp.replace(p)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 def _wj(p: Path, obj):
-    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_text(p, json.dumps(obj, ensure_ascii=False, indent=2))
 
 
 # 新版目录结构：逻辑文件名 → 任务文件夹内的实际位置（人能看懂的分类目录 + 隐藏的 .work）
@@ -65,8 +86,12 @@ class Job:
         _wj(self.meta_path, self.meta)
 
     def update(self, **kw):
-        self.meta.update(kw)
-        self.save()
+        # 进度、重命名和总结版本可能来自不同线程，合并最新字段再原子写盘。
+        with _file_lock(self.meta_path):
+            latest = _rj(self.meta_path) if self.meta_path.exists() else dict(self.meta)
+            latest.update(kw)
+            self.meta = latest
+            self.save()
 
     def f(self, name: str) -> Path:
         if self.legacy:
@@ -78,19 +103,52 @@ class Job:
         return p
 
 
-def run(job: Job, from_stage: str = "preprocess"):
-    """params 存在 job.meta['params']: diarize, language, context, prompt, model, num_speakers…"""
-    from .stages import preprocess, vad, asr, diarize, summarize
-
-    p = job.meta.get("params", {})
-    start = STAGES.index(from_stage)
-    t0 = time.time()
-    job.update(status="running", error=None, started_at=t0)
-
-    def stage(name, frac=0.0):
-        job.update(stage=name, progress=round(frac, 3))
+def _library_context(job: Job, transcript: str) -> str:
+    """按本节课内容检索项目资料库（失败不影响总结）"""
+    pid = job.meta.get("project")
+    if not pid:
+        return ""
+    from . import library, materials
 
     try:
+        library.build(pid)
+        return library.context_text(pid, transcript, library._cfg()["summary_chars"], exclude_job=job.id,
+                                    exclude_names={m["name"] for m in materials.list_all(job)})
+    except Exception:
+        traceback.print_exc()
+        return ""
+
+
+def _finish(job: Job):
+    job.update(status="done", stage="done", progress=1.0, queue_lane=None,
+               elapsed_sec=round(time.time() - (job.meta.get("started_at") or time.time()), 1))
+    if job.meta.get("project"):
+        from . import library
+
+        try:
+            library.refresh_async(job.meta["project"], min_interval=0)
+        except Exception:
+            traceback.print_exc()
+
+
+def _fail(job: Job, exc: Exception):
+    traceback.print_exc()
+    job.update(status="error", error=f"{type(exc).__name__}: {exc}", queue_lane=None,
+               elapsed_sec=round(time.time() - (job.meta.get("started_at") or time.time()), 1))
+
+
+def run_local(job: Job, from_stage: str = "preprocess") -> bool:
+    """串行使用本机模型，转录全部落盘后返回是否需要远程总结。"""
+    from .stages import preprocess, vad, asr, diarize
+
+    def stage(name, frac=0.0):
+        job.update(stage=name, resume_from=name, progress=round(frac, 3))
+
+    try:
+        start = STAGES.index(from_stage)
+        p = job.meta.get("params", {})
+        job.update(status="running", queue_lane="local", error=None,
+                   started_at=job.meta.get("started_at") or time.time())
         wav_path = job.f("audio.wav")
         if start <= 0:
             stage("preprocess")
@@ -98,6 +156,7 @@ def run(job: Job, from_stage: str = "preprocess"):
                                                  "name": job.meta.get("filename", "")}]
             job.update(parts=preprocess.concat_to_wav16k(
                 [(job.f(x["file"]), x["name"]) for x in inputs], wav_path, wav_path.parent))
+            job.update(resume_from="vad")
         wav = preprocess.load_wav(wav_path) if start <= 3 else None
         if wav is not None:
             job.update(duration_sec=round(len(wav) / preprocess.SR, 1))
@@ -105,6 +164,7 @@ def run(job: Job, from_stage: str = "preprocess"):
         if start <= 1:
             stage("vad")
             _wj(job.f("segments.json"), vad.segment(wav))
+            job.update(resume_from="asr")
 
         if start <= 2:
             stage("asr")
@@ -112,6 +172,7 @@ def run(job: Job, from_stage: str = "preprocess"):
                                  language=p.get("language"),
                                  progress=lambda x: stage("asr", x))
             _wj(job.f("asr.json"), res)
+            job.update(resume_from="diarize")
 
         res = _rj(job.f("asr.json"))
         sentences = res["sentences"]
@@ -134,32 +195,79 @@ def run(job: Job, from_stage: str = "preprocess"):
         parts = job.meta.get("parts") or []
         _wj(job.f("transcript.json"), {"language": res["language"], "parts": parts,
                                        "sentences": sentences})
-        job.f("transcript.md").write_text(formats.to_markdown(sentences, title, parts),
-                                          encoding="utf-8")
-        job.f("transcript.srt").write_text(formats.to_srt(sentences), encoding="utf-8")
+        _write_text(job.f("transcript.md"), formats.to_markdown(sentences, title, parts))
+        _write_text(job.f("transcript.srt"), formats.to_srt(sentences))
         text = formats.to_text(sentences, parts)
-        job.f("transcript.txt").write_text(text, encoding="utf-8")
-
+        _write_text(job.f("transcript.txt"), text)
+        job.update(transcript_ready_at=time.time())
         if p.get("summarize", True):
-            stage("summarize")
-            extra = p.get("extra", "")
-            if p.get("context"):
-                extra = f"背景信息：{p['context']}\n{extra}"
-            from . import llm, materials
+            job.update(resume_from="summarize")
+            return True
+        _finish(job)
+    except Exception as exc:
+        _fail(job, exc)
+    return False
 
-            materials.wait_ready(job)  # 课件还在转换时等待
-            mats = materials.context_parts(job, llm.supports_vision(p.get("model")))
-            md = summarize.summarize(text, p.get("prompt"), p.get("model"), extra,
-                                     progress=lambda x: stage("summarize", x), materials=mats)
-            from . import summaries  # 每次生成保存为新版本，不覆盖旧总结
 
-            summaries.add(job, f"# {title} · 总结\n\n{md}\n",
-                          p.get("model") or CFG["summary"]["model"],
-                          p.get("prompt") or CFG["summary"]["default_prompt"])
+def run_summary(job: Job):
+    """远程总结不加载音频、不占 GPU，可与后续录音的本地阶段同时执行。"""
+    from . import llm, materials, summaries
+    from .stages import summarize
 
-        job.update(status="done", stage="done", progress=1.0,
-                   elapsed_sec=round(time.time() - t0, 1))
-    except Exception as e:
-        traceback.print_exc()
-        job.update(status="error", error=f"{type(e).__name__}: {e}",
-                   elapsed_sec=round(time.time() - t0, 1))
+    try:
+        p = job.meta.get("params", {})
+        if not p.get("summarize", True):
+            _finish(job)
+            return
+        run_id = job.meta.get("run_id") or uuid.uuid4().hex
+        job.update(status="running", stage="summarize", resume_from="summarize", queue_lane="summary",
+                   progress=0, error=None, started_at=job.meta.get("started_at") or time.time(),
+                   summary_started_at=time.time(), run_id=run_id, summary_attempts=[], summary_notice=None)
+        previous = next((it for it in summaries.list_all(job)["items"] if it.get("run_id") == run_id), None)
+        if previous:
+            summaries.activate(job, previous["id"])
+            _finish(job)
+            return
+        text = job.f("transcript.txt").read_text(encoding="utf-8")
+        extra = p.get("extra", "")
+        if p.get("context"):
+            extra = f"背景信息：{p['context']}\n{extra}"
+        job.update(summary_phase="materials")
+        materials.wait_ready(job)
+        mats = materials.context_parts(job, any(llm.supports_vision(m) for m in llm.summary_models(p.get("model"))))
+        job.update(summary_phase="library")
+        lib = _library_context(job, text)
+        attempts, used = [], []
+
+        def on_attempt(model, state, detail):
+            if state == "calling":
+                failed = next((a for a in reversed(attempts) if a["status"] == "failed"), None)
+                attempts.append({"model": model, "status": state, "started_at": time.time()})
+                notice = f"{llm.label(failed['model'])} 未完成，已切换到 {llm.label(model)}" if failed else None
+            else:
+                attempts[-1].update(status=state, detail=detail, finished_at=time.time())
+                notice = f"{llm.label(model)} 未完成，准备尝试备用模型" if state == "failed" else job.meta.get("summary_notice")
+            job.update(summary_phase="model", summary_active_model=model, summary_attempts=attempts, summary_notice=notice)
+
+        def on_model(model):
+            if model not in used:
+                used.append(model)
+
+        md = summarize.summarize(text, p.get("prompt"), p.get("model"), extra,
+            progress=lambda x: job.update(progress=round(x, 3)), materials=mats, library=lib,
+            on_attempt=on_attempt, on_model=on_model)
+        title = job.meta.get("title") or Path(job.meta.get("filename", "录音")).stem
+        actual = used[-1]
+        summaries.add(job, f"# {title} · 总结\n\n{md}\n", actual,
+                      p.get("prompt") or CFG["summary"]["default_prompt"], run_id=run_id, models_used=used)
+        _finish(job)
+    except Exception as exc:
+        _fail(job, exc)
+
+
+def run(job: Job, from_stage: str = "preprocess"):
+    """CLI 保持同步；网页调度器将两个阶段分别送入各自的队列。"""
+    job.update(run_id=uuid.uuid4().hex, started_at=None, elapsed_sec=None, dispatch_ready=True,
+               resume_from=from_stage, error=None)
+    if from_stage == "summarize" or run_local(job, from_stage):
+        run_summary(job)
