@@ -6,7 +6,7 @@ import time
 import uuid
 from pathlib import Path
 
-from .pipeline import Job
+from .pipeline import Job, _wj, _write_text
 
 _lock = threading.Lock()
 
@@ -51,13 +51,13 @@ def _index(job: Job) -> dict:
 
 
 def _write(job: Job, idx: dict):
-    job.f("summaries.json").write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
+    _wj(job.f("summaries.json"), idx)
 
 
 def _sync_active(job: Job, idx: dict):
     if idx["active"]:
         it = next(i for i in idx["items"] if i["id"] == idx["active"])
-        shutil.copy(_file(job, it), job.f("summary.md"))
+        _write_text(job.f("summary.md"), _file(job, it).read_text(encoding="utf-8"))
         job.update(summary_model=it.get("model"), summary_prompt=it.get("prompt"))
     else:
         job.f("summary.md").unlink(missing_ok=True)
@@ -69,10 +69,14 @@ def list_all(job: Job) -> dict:
         return _index(job)
 
 
-def add(job: Job, text: str, model: str, prompt: str) -> dict:
+def add(job: Job, text: str, model: str, prompt: str, *, run_id: str | None = None,
+        models_used: list[str] | None = None) -> dict:
     """新增一个版本并设为当前"""
     with _lock:
         idx = _index(job)
+        existing = next((it for it in idx["items"] if run_id and it.get("run_id") == run_id), None)
+        if existing:
+            return existing
         sid = uuid.uuid4().hex[:8]
         from . import llm
 
@@ -82,9 +86,9 @@ def add(job: Job, text: str, model: str, prompt: str) -> dict:
             mname = model
         title = f"总结 {len(idx['items']) + 1}（{mname}）"
         fname = _new_file(job, title)
-        (_dir(job) / fname).write_text(text, encoding="utf-8")
+        _write_text(_dir(job) / fname, text)
         item = {"id": sid, "title": title, "file": fname, "model": model, "prompt": prompt,
-                "created_at": time.time()}
+                "created_at": time.time(), "run_id": run_id, "models_used": models_used or [model]}
         idx["items"].append(item)
         idx["active"] = sid
         _write(job, idx)

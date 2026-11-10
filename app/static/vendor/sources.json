@@ -1,0 +1,16 @@
+[
+  {
+    "package": "marked",
+    "version": "12.0.2",
+    "source": "https://registry.npmjs.org/marked/-/marked-12.0.2.tgz",
+    "archive_sha256": "6cfd2d09c6bce2541558a1547e5f3b9895ed743f0d287536ff2280e318e8a074",
+    "files": 2
+  },
+  {
+    "package": "katex",
+    "version": "0.16.9",
+    "source": "https://registry.npmjs.org/katex/-/katex-0.16.9.tgz",
+    "archive_sha256": "a0ccc017a6bff9e9dbc014b324e5203c52df16aeff105d971e916ce65b552733",
+    "files": 63
+  }
+]

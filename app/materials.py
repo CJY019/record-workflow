@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 
 from .config import CACHE_DIR, CFG
-from .pipeline import Job
+from .pipeline import Job, _wj
 
 OFFICE = {".ppt", ".pptx", ".pps", ".ppsx", ".doc", ".docx", ".odp", ".odt", ".rtf", ".xls", ".xlsx"}
 IMAGES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -46,7 +46,7 @@ def _index(job: Job) -> list[dict]:
 
 
 def _write(job: Job, items: list[dict]):
-    job.f("materials.json").write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    _wj(job.f("materials.json"), items)
 
 
 def _update(job: Job, aid: str, **kw):
@@ -65,6 +65,12 @@ def list_all(job: Job) -> list[dict]:
 
 def pending(job: Job) -> bool:
     return any(it["status"] == "processing" for it in _index(job))
+
+
+def resume_pending(job: Job):
+    for it in _index(job):
+        if it["status"] == "processing":
+            threading.Thread(target=_process, args=(job, it["id"]), daemon=True).start()
 
 
 def add(job: Job, src: Path, name: str, move: bool = False) -> dict:
@@ -159,6 +165,8 @@ def wait_ready(job: Job, timeout: float = 600):
     t0 = time.time()
     while pending(job) and time.time() - t0 < timeout:
         time.sleep(1)
+    if pending(job):
+        raise TimeoutError("课件尚未转换完成，请转换完成后仅重跑总结")
 
 
 # ---------- 给模型的上下文 ----------
